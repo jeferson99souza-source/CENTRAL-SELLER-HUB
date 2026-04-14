@@ -1,0 +1,47 @@
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Query,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ComplaintsService } from './complaints.service';
+import { TenantId } from '../../common/decorators/tenant.decorator';
+
+@ApiTags('complaints')
+@ApiBearerAuth()
+@Controller('complaints')
+export class ComplaintsController {
+  constructor(private readonly complaintsService: ComplaintsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Listar reclamações do tenant com filtros' })
+  @ApiQuery({ name: 'status', required: false, enum: ['open', 'pending', 'closed'] })
+  @ApiQuery({ name: 'marketplace', required: false })
+  findAll(
+    @TenantId() tenantId: string,
+    @Query('status') status?: string,
+    @Query('marketplace') marketplace?: string,
+  ) {
+    return this.complaintsService.findAll(tenantId, { status, marketplace });
+  }
+
+  @Get('urgent')
+  @ApiOperation({ summary: 'Listar reclamações com SLA vencendo em 2h' })
+  findUrgent(@TenantId() tenantId: string) {
+    return this.complaintsService.findUrgent(tenantId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Buscar reclamação por ID' })
+  findOne(@Param('id') id: string, @TenantId() tenantId: string) {
+    return this.complaintsService.findOne(id, tenantId);
+  }
+
+  @Patch(':id/resolve')
+  @ApiOperation({ summary: 'Marcar reclamação como resolvida' })
+  resolve(@Param('id') id: string, @TenantId() tenantId: string) {
+    return this.complaintsService.resolve(id, tenantId);
+  }
+}
