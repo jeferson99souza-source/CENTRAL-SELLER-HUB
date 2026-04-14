@@ -2,8 +2,25 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from './entities/company.entity';
-import { MarketplaceAccount } from './entities/marketplace-account.entity';
+import { Marketplace, MarketplaceAccount } from './entities/marketplace-account.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
+
+export interface UpsertMarketplaceAccountDto {
+  tenantId: string;
+  companyId: string;
+  marketplace: Marketplace;
+  sellerId: string;
+  sellerName: string;
+  accessTokenEnc: string;
+  refreshTokenEnc: string;
+  tokenExpiresAt: Date;
+}
+
+export interface UpdateTokensDto {
+  accessTokenEnc: string;
+  refreshTokenEnc: string;
+  tokenExpiresAt: Date;
+}
 
 @Injectable()
 export class AccountsService {
@@ -42,6 +59,54 @@ export class AccountsService {
     return this.accountRepo.find({
       where: { tenantId, isActive: true },
       relations: ['company'],
+    });
+  }
+
+  /**
+   * Cria ou atualiza a conta de marketplace.
+   * Identificador único: tenantId + companyId + marketplace + sellerId.
+   */
+  async upsertMarketplaceAccount(
+    dto: UpsertMarketplaceAccountDto,
+  ): Promise<MarketplaceAccount> {
+    let account = await this.accountRepo.findOne({
+      where: {
+        tenantId: dto.tenantId,
+        companyId: dto.companyId,
+        marketplace: dto.marketplace,
+        sellerId: dto.sellerId,
+      },
+    });
+
+    if (!account) {
+      account = this.accountRepo.create({
+        tenantId: dto.tenantId,
+        companyId: dto.companyId,
+        marketplace: dto.marketplace,
+        sellerId: dto.sellerId,
+      });
+    }
+
+    account.sellerName = dto.sellerName;
+    account.accessTokenEnc = dto.accessTokenEnc;
+    account.refreshTokenEnc = dto.refreshTokenEnc;
+    account.tokenExpiresAt = dto.tokenExpiresAt;
+    account.isActive = true;
+
+    return this.accountRepo.save(account);
+  }
+
+  /**
+   * Atualiza apenas os tokens de uma conta existente (usado no refresh automático).
+   */
+  async updateTokens(
+    accountId: string,
+    dto: UpdateTokensDto,
+  ): Promise<void> {
+    await this.accountRepo.update(accountId, {
+      accessTokenEnc: dto.accessTokenEnc,
+      refreshTokenEnc: dto.refreshTokenEnc,
+      tokenExpiresAt: dto.tokenExpiresAt,
     });
   }
 }

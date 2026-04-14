@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 // Módulos da aplicação
+import { AuthModule } from './modules/auth/auth.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
@@ -13,6 +14,7 @@ import { AutomationModule } from './modules/automation/automation.module';
 import { QueuesModule } from './modules/queues/queues.module';
 
 // Entidades TypeORM
+import { User } from './modules/auth/entities/user.entity';
 import { Company } from './modules/accounts/entities/company.entity';
 import { MarketplaceAccount } from './modules/accounts/entities/marketplace-account.entity';
 import { Message } from './modules/messaging/entities/message.entity';
@@ -26,17 +28,34 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
     // TypeORM com PostgreSQL
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DB_HOST', 'localhost'),
-        port: config.get<number>('DB_PORT', 5432),
-        username: config.get('DB_USER', 'postgres'),
-        password: config.get('DB_PASSWORD', 'postgres'),
-        database: config.get('DB_NAME', 'central_seller'),
-        entities: [Company, MarketplaceAccount, Message, Complaint],
-        synchronize: config.get('NODE_ENV') !== 'production', // Só em dev!
-        logging: config.get('NODE_ENV') === 'development',
-      }),
+      useFactory: (config: ConfigService) => {
+        const databaseUrl = config.get('DATABASE_URL');
+        const isProduction = config.get('NODE_ENV') === 'production';
+
+        if (databaseUrl) {
+          return {
+            type: 'postgres',
+            url: databaseUrl,
+            entities: [User, Company, MarketplaceAccount, Message, Complaint],
+            synchronize: !isProduction,
+            logging: !isProduction,
+            ssl: isProduction ? { rejectUnauthorized: false } : false,
+          };
+        }
+
+        return {
+          type: 'postgres',
+          host: config.get('DB_HOST', 'localhost'),
+          port: config.get<number>('DB_PORT', 5432),
+          username: config.get('DB_USER', 'postgres'),
+          password: config.get('DB_PASSWORD', 'postgres'),
+          database: config.get('DB_NAME', 'central_seller'),
+          entities: [User, Company, MarketplaceAccount, Message, Complaint],
+          synchronize: !isProduction,
+          logging: !isProduction,
+          ssl: isProduction ? { rejectUnauthorized: false } : false,
+        };
+      },
       inject: [ConfigService],
     }),
 
@@ -49,6 +68,7 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
     ]),
 
     // Módulos de negócio
+    AuthModule,
     AccountsModule,
     MessagingModule,
     ComplaintsModule,
