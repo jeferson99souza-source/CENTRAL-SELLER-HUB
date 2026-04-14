@@ -19,12 +19,12 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
       provide: 'REDIS_CLIENT',
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL');
-        const isProduction = config.get('NODE_ENV') === 'production';
 
         if (redisUrl) {
           return new Redis(redisUrl, {
-            tls: isProduction ? {} : undefined,
             maxRetriesPerRequest: 3,
+            enableReadyCheck: false,
+            lazyConnect: false,
           });
         }
 

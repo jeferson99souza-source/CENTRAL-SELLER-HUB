@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 // Módulos da aplicação
 import { AuthModule } from './modules/auth/auth.module';
@@ -77,5 +79,7 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
     AutomationModule,
     QueuesModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
