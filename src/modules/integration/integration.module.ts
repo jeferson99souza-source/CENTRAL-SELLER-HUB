@@ -14,16 +14,28 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
   imports: [ConfigModule, AccountsModule],
   controllers: [IntegrationController],
   providers: [
-    // Cliente Redis para armazenar state PKCE (TTL 10 min)
+    // Cliente Redis — usa REDIS_URL (Railway) ou variáveis individuais (local)
     {
       provide: 'REDIS_CLIENT',
-      useFactory: (config: ConfigService) =>
-        new Redis({
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        const isProduction = config.get('NODE_ENV') === 'production';
+
+        if (redisUrl) {
+          return new Redis(redisUrl, {
+            tls: isProduction ? {} : undefined,
+            maxRetriesPerRequest: 3,
+          });
+        }
+
+        return new Redis({
           host: config.get<string>('REDIS_HOST', 'localhost'),
           port: config.get<number>('REDIS_PORT', 6379),
           password: config.get<string>('REDIS_PASSWORD') || undefined,
           db: config.get<number>('REDIS_DB', 0),
-        }),
+          maxRetriesPerRequest: 3,
+        });
+      },
       inject: [ConfigService],
     },
     OAuthStateService,
