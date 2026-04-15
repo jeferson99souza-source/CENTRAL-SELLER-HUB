@@ -25,7 +25,8 @@ interface MlMessage {
   id: string;
   from: { user_id: number };
   to: { user_id: number };
-  text: { plain: string };
+  // API retorna text como string direta (não objeto)
+  text: string | { plain: string };
   message_date: { received: string };
 }
 
@@ -177,7 +178,7 @@ export class MlSyncService {
               continue;
             }
 
-            const content = msg.text?.plain?.trim() ?? '';
+            const content = (typeof msg.text === 'string' ? msg.text : msg.text?.plain ?? '').trim();
             const isAutoNotification = sender === 'cliente' && content === '';
             const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
             slaDeadline.setHours(slaDeadline.getHours() + 48);

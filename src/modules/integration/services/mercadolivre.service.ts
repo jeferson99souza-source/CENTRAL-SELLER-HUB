@@ -158,7 +158,14 @@ export class MercadoLivreService {
 
   async getMessages(accessToken: string, packId: string, sellerId: string): Promise<unknown> {
     this.logger.log(`Buscando mensagens do pack ${packId}`);
-    return this.mlGet(`/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`, accessToken);
+    // Endpoint correto: /messages/packs/{pack_id}/sellers/{seller_id}?tag=post_sale&mark_as_read=false
+    const data = await this.mlGet(
+      `/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`,
+      accessToken,
+    );
+    const messages = (data as any)?.messages ?? [];
+    this.logger.log(`Pack ${packId}: ${messages.length} mensagens encontradas`);
+    return data;
   }
 
   async sendMessage(
@@ -169,6 +176,7 @@ export class MercadoLivreService {
     text: string,
   ): Promise<unknown> {
     this.logger.log(`Enviando mensagem pack=${packId} buyer=${buyerId}`);
+    // Formato correto do payload de envio conforme docs ML
     const response = await fetch(`${this.baseUrl}/messages/packs/${packId}/sellers/${sellerId}`, {
       method: 'POST',
       headers: {
@@ -204,8 +212,9 @@ export class MercadoLivreService {
 
   async getClaims(accessToken: string, sellerId: string): Promise<unknown> {
     this.logger.log(`Buscando reclamações seller=${sellerId}`);
+    // Endpoint atualizado: /post-purchase/v2/claims (v1 deprecated desde mar/2025)
     return this.mlGet(
-      `/post-purchase/v1/claims/search?player_user_id=${sellerId}&player_role=respondent`,
+      `/post-purchase/v2/claims/search?seller_id=${sellerId}&player_role=respondent&limit=50`,
       accessToken,
     );
   }

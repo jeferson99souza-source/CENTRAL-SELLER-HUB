@@ -83,7 +83,7 @@ export class MlWebhookService {
 
     const sellerIdNum = Number(account.sellerId);
     const sender = msg.from?.user_id === sellerIdNum ? 'vendedor' : 'cliente';
-    const content = msg.text?.plain?.trim() ?? '';
+    const content = (typeof msg.text === 'string' ? msg.text : msg.text?.plain ?? '').trim();
     const packId = String(msg.pack_id || msg.order_id || '');
     const orderId = String(msg.order_id || '');
 
