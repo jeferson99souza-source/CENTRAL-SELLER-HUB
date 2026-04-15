@@ -46,4 +46,11 @@ export class AutomationService {
 
     return templates[classification] || null;
   }
+
+  /**
+   * Mensagem automática pós-venda (usada no webhook de orders)
+   */
+  getWelcomeMessage(buyerName: string): string {
+    return `Olá, ${buyerName}! Agradecemos imensamente pela sua compra. O seu pedido já está sendo preparado pela nossa equipe e em breve você receberá o código de rastreamento. Qualquer dúvida, estamos à disposição por aqui!`;
+  }
 }

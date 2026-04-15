@@ -7,6 +7,7 @@ import { Question } from '../../questions/entities/question.entity';
 import { Order } from '../../orders/entities/order.entity';
 import { MercadoLivreService } from './mercadolivre.service';
 import { TokenEncryptionService } from '../../../common/crypto/token-encryption.service';
+import { AutomationService } from '../../automation/automation.service';
 
 @Injectable()
 export class MlWebhookService {
@@ -24,6 +25,7 @@ export class MlWebhookService {
     private readonly orderRepo: Repository<Order>,
     private readonly mlService: MercadoLivreService,
     private readonly encryption: TokenEncryptionService,
+    private readonly autoService: AutomationService,
   ) {}
 
   async handleEvent(body: any, query: any) {
@@ -217,6 +219,16 @@ export class MlWebhookService {
     };
 
     if (exists) {
+      if (exists.status !== 'paid' && order.status === 'paid' && order.pack_id) {
+        try {
+          const welcome = this.autoService.getWelcomeMessage(buyerName);
+          await this.mlService.sendMessage(accessToken, String(order.pack_id), account.sellerId, String(order.buyer.id), welcome);
+          this.logger.log(`Auto-Mensagem pós-venda disparada para pedido atualizado: ${externalId}`);
+        } catch (e) {
+          this.logger.error(`Falha ao enviar mensagem automática (update): ${(e as Error).message}`);
+        }
+      }
+
       // Atualiza os dados de status, etc se recwbeu um pedido existente
       await this.orderRepo.update(exists.id, orderData);
       this.logger.log(`Pedido (Webhook) atualizado: ${externalId} com status ${order.status}`);
@@ -226,7 +238,15 @@ export class MlWebhookService {
     await this.orderRepo.save(orderData);
     this.logger.log(`Pedido salvo via webhook: ${externalId}`);
     
-    // Future: Auto-Responder goes here for `order.status === 'paid'`
+    if (order.status === 'paid' && order.pack_id) {
+       try {
+         const welcome = this.autoService.getWelcomeMessage(buyerName);
+         await this.mlService.sendMessage(accessToken, String(order.pack_id), account.sellerId, String(order.buyer.id), welcome);
+         this.logger.log(`Auto-Mensagem pós-venda disparada com sucesso para pedido novo: ${externalId}`);
+       } catch (e) {
+         this.logger.error(`Falha ao enviar mensagem automática (novo): ${(e as Error).message}`);
+       }
+    }
   }
 
   private async mlFetch(resource: string, accessToken: string): Promise<any> {

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module';
 import { AccountsModule } from '../accounts/accounts.module';
+import { AutomationModule } from '../automation/automation.module';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { Message } from '../messaging/entities/message.entity';
 import { Complaint } from '../complaints/entities/complaint.entity';
@@ -25,6 +26,7 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
     ConfigModule,
     AccountsModule,
     AuthModule,
+    AutomationModule,
     TypeOrmModule.forFeature([MarketplaceAccount, Message, Complaint, Question, Order]),
   ],
   controllers: [IntegrationController, MlWebhookController],
