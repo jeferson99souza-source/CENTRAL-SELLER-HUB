@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import Redis from 'ioredis';
 
-const STATE_TTL_SECONDS = 600; // 10 minutos para o usuário completar o OAuth
+const STATE_TTL_SECONDS = 1800; // 30 minutos para o usuário completar o OAuth
 
 export interface OAuthState {
   tenantId: string;
