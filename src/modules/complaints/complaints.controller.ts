@@ -4,6 +4,7 @@ import {
   Patch,
   Param,
   Query,
+  Body,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
@@ -47,5 +48,31 @@ export class ComplaintsController {
   @ApiOperation({ summary: 'Marcar reclamação como resolvida' })
   resolve(@Param('id') id: string, @TenantId() tenantId: string) {
     return this.complaintsService.resolve(id, tenantId);
+  }
+
+  @Get('returns')
+  @ApiOperation({ summary: 'Listar devoluções' })
+  findReturns(@TenantId() tenantId: string) {
+    return this.complaintsService.findReturns(tenantId);
+  }
+
+  @Patch(':id/stage')
+  @ApiOperation({ summary: 'Atualizar etapa da devolução' })
+  updateStage(
+    @Param('id') id: string,
+    @TenantId() tenantId: string,
+    @Body('stage') stage: string,
+  ) {
+    return this.complaintsService.updateStage(id, tenantId, stage as any);
+  }
+
+  @Patch(':id/notes')
+  @ApiOperation({ summary: 'Atualizar notas/próximos passos' })
+  updateNotes(
+    @Param('id') id: string,
+    @TenantId() tenantId: string,
+    @Body('notes') notes: string,
+  ) {
+    return this.complaintsService.updateNotes(id, tenantId, notes);
   }
 }

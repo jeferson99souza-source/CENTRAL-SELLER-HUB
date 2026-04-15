@@ -51,6 +51,19 @@ export class Complaint {
   @Column({ default: 'urgent' })
   priority: 'urgent' | 'high' | 'normal';
 
+  // Devolução
+  @ApiProperty()
+  @Column({ default: false })
+  isReturn: boolean;
+
+  @ApiProperty({ enum: ['opened', 'mediation', 'return_requested', 'return_in_transit', 'return_received', 'refunded', 'resolved'] })
+  @Column({ nullable: true })
+  stage: 'opened' | 'mediation' | 'return_requested' | 'return_in_transit' | 'return_received' | 'refunded' | 'resolved';
+
+  @ApiProperty()
+  @Column({ type: 'text', nullable: true })
+  notes: string;
+
   @ApiProperty()
   @Column({ type: 'timestamp' })
   slaDeadline: Date;

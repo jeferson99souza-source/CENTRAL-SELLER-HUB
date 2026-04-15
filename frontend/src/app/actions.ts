@@ -61,6 +61,32 @@ export async function syncML() {
   return { success: true, data: body.data }
 }
 
+export async function updateComplaintStage(id: string, stage: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const res = await fetch(`${API_URL}/complaints/${id}/stage`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  })
+  if (!res.ok) return { error: await res.text() }
+  return { success: true }
+}
+
+export async function updateComplaintNotes(id: string, notes: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const res = await fetch(`${API_URL}/complaints/${id}/notes`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  })
+  if (!res.ok) return { error: await res.text() }
+  return { success: true }
+}
+
 export async function answerQuestion(questionId: string, text: string) {
   const store = await cookies()
   const token = store.get('token')?.value

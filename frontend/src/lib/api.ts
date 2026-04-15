@@ -43,6 +43,9 @@ export type Complaint = {
   reason: string
   status: 'open' | 'pending' | 'closed'
   priority: 'urgent' | 'high' | 'normal'
+  isReturn: boolean
+  stage: 'opened' | 'mediation' | 'return_requested' | 'return_in_transit' | 'return_received' | 'refunded' | 'resolved' | null
+  notes: string | null
   slaDeadline: string
   createdAt: string
   orderId: string | null

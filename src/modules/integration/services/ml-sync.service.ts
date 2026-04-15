@@ -244,11 +244,29 @@ export class MlSyncService {
           } catch { /* segue sem dados do pedido */ }
         }
 
+        // Detecta se é uma devolução pelos reason_id do ML
+        const RETURN_REASONS = ['PDD', 'ITEM_NOT_AS_DESCRIBED', 'WANTS_RETURN', 'PRODUCT_DAMAGED'];
+        const isReturn = RETURN_REASONS.some((r) => (claim.reason_id ?? '').startsWith(r));
+
+        // Mapeia reason_id para texto legível
+        const REASON_MAP: Record<string, string> = {
+          PNR: 'Produto não recebido',
+          PDD: 'Produto diferente ou danificado',
+          WANTS_RETURN: 'Cliente solicita devolução',
+          ITEM_NOT_AS_DESCRIBED: 'Item diferente do anúncio',
+          PRODUCT_DAMAGED: 'Produto danificado',
+        };
+        const reasonPrefix = (claim.reason_id ?? '').split(/\d/)[0];
+        const reason = REASON_MAP[reasonPrefix] ?? REASON_MAP[claim.reason_id ?? ''] ?? claim.reason_id ?? 'Reclamação do Mercado Livre';
+
         await this.complaintRepo.save({
           tenantId: account.tenantId, externalId, marketplace: 'mercadolivre',
-          reason: claim.reason_id ?? 'Reclamação do Mercado Livre',
+          reason,
           status: claim.status === 'closed' ? 'closed' : 'open',
-          priority: 'urgent', slaDeadline, orderId, buyerName, itemTitle,
+          priority: 'urgent',
+          isReturn,
+          stage: isReturn ? 'opened' : undefined,
+          slaDeadline, orderId, buyerName, itemTitle,
         });
         synced++;
       }

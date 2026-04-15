@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
 import { Complaint } from './entities/complaint.entity';
@@ -75,5 +75,29 @@ export class ComplaintsService {
       { id, tenantId },
       { status: 'closed', resolvedAt: new Date() },
     );
+  }
+
+  async findReturns(tenantId: string): Promise<Complaint[]> {
+    return this.complaintRepo.find({
+      where: { tenantId, isReturn: true },
+      order: { slaDeadline: 'ASC' },
+    });
+  }
+
+  async updateStage(id: string, tenantId: string, stage: Complaint['stage']): Promise<Complaint> {
+    const complaint = await this.findOne(id, tenantId);
+    const updates: Partial<Complaint> = { stage };
+    if (stage === 'resolved' || stage === 'refunded') {
+      updates.status = 'closed';
+      updates.resolvedAt = new Date();
+    }
+    await this.complaintRepo.update({ id, tenantId }, updates);
+    return this.findOne(id, tenantId);
+  }
+
+  async updateNotes(id: string, tenantId: string, notes: string): Promise<Complaint> {
+    await this.findOne(id, tenantId);
+    await this.complaintRepo.update({ id, tenantId }, { notes });
+    return this.findOne(id, tenantId);
   }
 }
