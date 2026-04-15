@@ -155,7 +155,7 @@ export class MlSyncService {
             if (sender === 'vendedor') {
                await this.messageRepo.update(
                  { packId: String(packId), tenantId: account.tenantId, sender: 'cliente', status: 'pending' },
-                 { status: 'answered' }
+                 { status: 'replied' }
                );
             }
 
@@ -192,7 +192,7 @@ export class MlSyncService {
               itemTitle,
               sender,
               content: msg.text?.plain ?? '',
-              status: (sender === 'vendedor' || isAutoNotification) ? 'answered' : 'pending',
+              status: (sender === 'vendedor' || isAutoNotification) ? 'replied' : 'pending',
               slaDeadline,
             });
             synced++;
