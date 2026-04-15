@@ -4,6 +4,7 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
+import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { AccountsService } from '../../accounts/accounts.service';
 import { MarketplaceAccount } from '../../accounts/entities/marketplace-account.entity';
@@ -181,38 +182,32 @@ export class MercadoLivreService {
     if (isNaN(sellerNum)) throw new Error(`sellerId inválido para envio: "${sellerId}"`);
     if (isNaN(buyerNum) || buyerNum <= 0) throw new Error(`buyerId inválido para envio: "${buyerId}"`);
 
-    // ML tem bug com UTF-8 raw no body — força escape unicode (\uXXXX)
-    const escapeUnicode = (str: string) =>
-      str.replace(/[\u0080-\uFFFF]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
-
     const payload = {
       from: { user_id: sellerNum },
       to: { user_id: buyerNum },
       text: { plain: text },
     };
 
-    const bodyStr = escapeUnicode(JSON.stringify(payload));
-    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerNum} buyer=${buyerNum} payload=${bodyStr}`);
+    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerNum} buyer=${buyerNum} payload=${JSON.stringify(payload)}`);
 
-    const response = await fetch(
-      `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+    try {
+      const { data } = await axios.post(
+        `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
         },
-        body: bodyStr,
-      },
-    );
-
-    if (!response.ok) {
-      const err = await response.text();
-      this.logger.error(`Erro ao enviar mensagem ML ${response.status}: ${err}`);
-      throw new Error(`ML ${response.status}: ${err}`);
+      );
+      return data;
+    } catch (err) {
+      const status = (err as any)?.response?.status;
+      const detail = JSON.stringify((err as any)?.response?.data ?? (err as Error).message);
+      this.logger.error(`Erro ao enviar mensagem ML ${status}: ${detail}`);
+      throw new Error(`ML ${status}: ${detail}`);
     }
-
-    return response.json();
   }
 
   async getUnansweredQuestions(
