@@ -181,13 +181,19 @@ export class MercadoLivreService {
     if (isNaN(sellerNum)) throw new Error(`sellerId inválido para envio: "${sellerId}"`);
     if (isNaN(buyerNum)) throw new Error(`buyerId inválido para envio: "${buyerId}"`);
 
+    // ML infere o "from" pelo token OAuth — enviar explicitamente pode causar
+    // conflito se o sellerId no DB diferir minimamente do user_id do token
     const payload = {
       from: { user_id: sellerNum },
       to: { user_id: buyerNum },
       text: { plain: text },
+      attachments: [],
     };
 
-    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerNum} buyer=${buyerNum} payload=${JSON.stringify(payload)}`);
+    const bodyStr = JSON.stringify(payload);
+    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerNum} buyer=${buyerNum}`);
+    this.logger.log(`Payload: ${bodyStr}`);
+    this.logger.log(`URL: ${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`);
 
     const response = await fetch(
       `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`,
@@ -195,9 +201,9 @@ export class MercadoLivreService {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: bodyStr,
       },
     );
 
