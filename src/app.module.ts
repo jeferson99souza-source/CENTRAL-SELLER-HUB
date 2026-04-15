@@ -33,13 +33,15 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.get('DATABASE_URL');
         const isProduction = config.get('NODE_ENV') === 'production';
+        const dbSync = config.get('DB_SYNC') === 'true';
+        const shouldSync = dbSync || !isProduction;
 
         if (databaseUrl) {
           return {
             type: 'postgres',
             url: databaseUrl,
             entities: [User, Company, MarketplaceAccount, Message, Complaint],
-            synchronize: !isProduction,
+            synchronize: shouldSync,
             logging: !isProduction,
             ssl: isProduction ? { rejectUnauthorized: false } : false,
           };
@@ -53,7 +55,7 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
           password: config.get('DB_PASSWORD', 'postgres'),
           database: config.get('DB_NAME', 'central_seller'),
           entities: [User, Company, MarketplaceAccount, Message, Complaint],
-          synchronize: !isProduction,
+          synchronize: shouldSync,
           logging: !isProduction,
           ssl: isProduction ? { rejectUnauthorized: false } : false,
         };

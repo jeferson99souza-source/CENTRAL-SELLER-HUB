@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
+import { AuthModule } from '../auth/auth.module';
 import { AccountsModule } from '../accounts/accounts.module';
 import { IntegrationController } from './integration.controller';
 import { MercadoLivreService } from './services/mercadolivre.service';
@@ -11,7 +12,7 @@ import { OAuthStateService } from './services/oauth-state.service';
 import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
 
 @Module({
-  imports: [ConfigModule, AccountsModule],
+  imports: [ConfigModule, AccountsModule, AuthModule],
   controllers: [IntegrationController],
   providers: [
     // Cliente Redis — usa REDIS_URL (Railway) ou variáveis individuais (local)

@@ -24,11 +24,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
+    const isDev = process.env.NODE_ENV !== 'production';
+    const internalDetail =
+      isDev && !(exception instanceof HttpException)
+        ? String((exception as any)?.message ?? exception)
+        : undefined;
+
+    if (!(exception instanceof HttpException)) {
+      console.error('[HttpExceptionFilter]', exception);
+    }
+
     response.status(status).json({
       error: {
         code: status,
         message: typeof message === 'string' ? message : (message as any).message,
-        details: typeof message === 'object' ? message : undefined,
+        details: typeof message === 'object' ? message : internalDetail,
         path: request.url,
         timestamp: new Date().toISOString(),
       },

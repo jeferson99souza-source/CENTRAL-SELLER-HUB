@@ -48,7 +48,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  console.log(`\n🚀 Central Seller HUB rodando em: http://localhost:${port}`);
-  console.log(`📚 Swagger disponível em: http://localhost:${port}/api\n`);
+  console.log(`\n Central Seller HUB rodando em: http://localhost:${port}`);
+  console.log(` Swagger disponível em: http://localhost:${port}/api\n`);
 }
 bootstrap();
