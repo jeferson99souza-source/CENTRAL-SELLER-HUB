@@ -46,6 +46,9 @@ export type Complaint = {
   isReturn: boolean
   stage: 'opened' | 'mediation' | 'return_requested' | 'return_in_transit' | 'return_received' | 'refunded' | 'resolved' | null
   notes: string | null
+  vistoraRequired: boolean
+  returnShipmentStatus: string | null
+  returnTrackingCode: string | null
   slaDeadline: string
   createdAt: string
   orderId: string | null
@@ -60,6 +63,8 @@ export type Message = {
   buyerId: string
   buyerName: string
   itemTitle: string | null
+  orderStatus: string | null
+  shippingStatus: string | null
   sender: 'cliente' | 'vendedor' | 'bot'
   content: string
   status: 'pending' | 'read' | 'replied'

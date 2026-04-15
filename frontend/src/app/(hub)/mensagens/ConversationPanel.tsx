@@ -1,8 +1,25 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Send, ShoppingBag, X } from 'lucide-react'
+import { Send, ShoppingBag, X, Truck } from 'lucide-react'
 import type { Message } from '@/lib/api'
+
+const SHIPPING_MAP: Record<string, { label: string; color: string }> = {
+  handling:       { label: '📦 Preparando',   color: 'bg-gray-100 text-gray-600' },
+  ready_to_ship:  { label: '⚡ Enviar hoje',   color: 'bg-yellow-100 text-yellow-700' },
+  shipped:        { label: '🚚 Enviado',       color: 'bg-blue-100 text-blue-700' },
+  delivered:      { label: '✅ Entregue',      color: 'bg-green-100 text-green-700' },
+  not_delivered:  { label: '❌ Não entregue', color: 'bg-red-100 text-red-600' },
+  returning:      { label: '↩️ Devolvendo',    color: 'bg-purple-100 text-purple-600' },
+  returned:       { label: '↩️ Devolvido',     color: 'bg-purple-100 text-purple-600' },
+  cancelled:      { label: '🚫 Cancelado',    color: 'bg-red-100 text-red-500' },
+}
+
+function ShippingBadge({ status }: { status: string }) {
+  const info = SHIPPING_MAP[status]
+  if (!info) return <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 flex items-center gap-1"><Truck className="w-3 h-3" />{status}</span>
+  return <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${info.color}`}>{info.label}</span>
+}
 
 type Props = {
   selected: Message
@@ -58,7 +75,14 @@ export default function ConversationPanel({ selected, onClose }: Props) {
     setSending(false)
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      setError(body?.message ?? 'Erro ao enviar mensagem.')
+      // body.error é {code, message, details, path, timestamp} — extrair mensagem legível
+      const errObj = body?.error
+      const errMsg: string =
+        errObj?.details?.message   // detalhe do ML (ex: "ML 403: …")
+        ?? errObj?.message         // mensagem principal
+        ?? body?.message           // fallback NestJS padrão
+        ?? `Erro ${res.status}`
+      setError(String(errMsg))
     } else {
       setSuccess(true)
       setText('')
@@ -75,7 +99,12 @@ export default function ConversationPanel({ selected, onClose }: Props) {
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-bold text-gray-900 truncate">{selected.buyerName || 'Cliente'}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-gray-900 truncate">{selected.buyerName || 'Cliente'}</p>
+            {selected.shippingStatus && (
+              <ShippingBadge status={selected.shippingStatus} />
+            )}
+          </div>
           {selected.itemTitle && (
             <div className="flex items-center gap-1.5 mt-1">
               <ShoppingBag className="w-3.5 h-3.5 text-orange-400 shrink-0" />
@@ -115,30 +144,28 @@ export default function ConversationPanel({ selected, onClose }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Reply input */}
-      {selected.status !== 'replied' && (
-        <div className="px-4 py-3 border-t border-gray-100 bg-white space-y-2">
-          {error && <p className="text-xs text-red-500">{error}</p>}
-          {success && <p className="text-xs text-green-600">Mensagem enviada com sucesso!</p>}
-          <div className="flex gap-2">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Digite sua resposta..."
-              className="flex-1 text-sm px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            <button
-              onClick={handleSend}
-              disabled={sending || !text.trim()}
-              className="bg-[#DE7100] text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-orange-600 transition-colors disabled:opacity-50"
-            >
-              <Send className="w-4 h-4" />
-              {sending ? '...' : 'Enviar'}
-            </button>
-          </div>
+      {/* Reply input — sempre visível */}
+      <div className="px-4 py-3 border-t border-gray-100 bg-white space-y-2">
+        {error && <p className="text-xs text-red-500 px-1">{error}</p>}
+        {success && <p className="text-xs text-green-600 px-1">Mensagem enviada!</p>}
+        <div className="flex gap-2">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            placeholder="Digite sua resposta..."
+            className="flex-1 text-sm px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending || !text.trim()}
+            className="bg-[#DE7100] text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-orange-600 transition-colors disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? '...' : 'Enviar'}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   )
 }

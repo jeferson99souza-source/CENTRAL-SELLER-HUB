@@ -3,8 +3,13 @@ import { apiFetch, type Complaint } from '@/lib/api'
 import ReclamacoesLayout from './ReclamacoesLayout'
 
 async function ReclamacoesData() {
-  const complaints = await apiFetch<Complaint[]>('/complaints')
-  return <ReclamacoesLayout complaints={complaints} />
+  try {
+    const result = await apiFetch<unknown>('/complaints')
+    const complaints: Complaint[] = Array.isArray(result) ? result : []
+    return <ReclamacoesLayout complaints={complaints} />
+  } catch {
+    return <ReclamacoesLayout complaints={[]} />
+  }
 }
 
 function Skeleton() {

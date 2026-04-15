@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { HelpCircle, Clock, User, Package, Send, X } from 'lucide-react'
+import { HelpCircle, Clock, User, Package, Send, X, Trash2, UserX, Sparkles, Loader2 } from 'lucide-react'
 import type { Question } from '@/lib/api'
-import { answerQuestion } from '@/app/actions'
+import { answerQuestion, dismissQuestion, blockBuyer, aiSuggestQuestion } from '@/app/actions'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -16,7 +16,11 @@ export default function QuestionsLayout({ questions: initial }: Props) {
   const [replying, setReplying] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [aiLoading, setAiLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const removeQuestion = (id: string) =>
+    setQuestions((prev) => prev.filter((q) => q.id !== id))
 
   const handleReply = async (questionId: string) => {
     if (!replyText.trim()) return
@@ -27,10 +31,33 @@ export default function QuestionsLayout({ questions: initial }: Props) {
     if ('error' in res && res.error) {
       setError(res.error)
     } else {
-      // Remove da lista de pendentes
-      setQuestions((prev) => prev.filter((q) => q.id !== questionId))
+      removeQuestion(questionId)
       setReplying(null)
       setReplyText('')
+    }
+  }
+
+  const handleDismiss = async (questionId: string) => {
+    const res = await dismissQuestion(questionId)
+    if (!('error' in res)) removeQuestion(questionId)
+  }
+
+  const handleBlockBuyer = async (questionId: string) => {
+    if (!confirm('Bloquear este comprador no Mercado Livre? Ele não poderá mais fazer perguntas nos seus anúncios.')) return
+    const res = await blockBuyer(questionId)
+    if (!('error' in res)) removeQuestion(questionId)
+  }
+
+  const handleAiSuggest = async (questionId: string) => {
+    setAiLoading(questionId)
+    setError(null)
+    const res = await aiSuggestQuestion(questionId)
+    setAiLoading(null)
+    if ('suggestion' in res) {
+      setReplying(questionId)
+      setReplyText(res.suggestion ?? '')
+    } else {
+      setError('error' in res ? res.error : 'Erro ao gerar sugestão')
     }
   }
 
@@ -47,6 +74,8 @@ export default function QuestionsLayout({ questions: initial }: Props) {
     <div className="space-y-3 pb-8">
       {questions.map((q) => (
         <div key={q.id} className="bg-white rounded-3xl p-5 shadow-sm">
+
+          {/* Header */}
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="flex items-center gap-2 min-w-0">
               <User className="w-4 h-4 text-gray-400 shrink-0" />
@@ -54,9 +83,27 @@ export default function QuestionsLayout({ questions: initial }: Props) {
                 {q.buyerName || 'Cliente'}
               </span>
             </div>
-            <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">
-              Pendente
-            </span>
+            <div className="flex items-center gap-1">
+              {/* Bloquear comprador */}
+              <button
+                onClick={() => handleBlockBuyer(q.id)}
+                title="Bloquear comprador"
+                className="p-1.5 rounded-xl text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+              >
+                <UserX className="w-3.5 h-3.5" />
+              </button>
+              {/* Dispensar pergunta */}
+              <button
+                onClick={() => handleDismiss(q.id)}
+                title="Dispensar pergunta"
+                className="p-1.5 rounded-xl text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+              <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 ml-1">
+                Pendente
+              </span>
+            </div>
           </div>
 
           {q.itemTitle && (
@@ -103,14 +150,27 @@ export default function QuestionsLayout({ questions: initial }: Props) {
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
               <div className="flex items-center gap-1 text-xs text-gray-400">
                 <Clock className="w-3.5 h-3.5" />
-                <span>SLA Resposta: {formatDate(q.slaDeadline)}</span>
+                <span>SLA: {formatDate(q.slaDeadline)}</span>
               </div>
-              <button
-                onClick={() => { setReplying(q.id); setReplyText(''); setError(null) }}
-                className="text-xs font-bold text-[#DE7100] hover:underline uppercase"
-              >
-                Responder
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Botão IA */}
+                <button
+                  onClick={() => handleAiSuggest(q.id)}
+                  disabled={aiLoading === q.id}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-full transition-colors disabled:opacity-60"
+                >
+                  {aiLoading === q.id
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Sparkles className="w-3.5 h-3.5" />}
+                  Sugerir com IA
+                </button>
+                <button
+                  onClick={() => { setReplying(q.id); setReplyText(''); setError(null) }}
+                  className="text-xs font-bold text-[#DE7100] hover:underline uppercase"
+                >
+                  Responder
+                </button>
+              </div>
             </div>
           )}
         </div>

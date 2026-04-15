@@ -3,8 +3,13 @@ import { apiFetch, type Message } from '@/lib/api'
 import MessagesLayout from './MessagesLayout'
 
 async function MessagesData() {
-  const messages = await apiFetch<Message[]>('/messaging/pending')
-  return <MessagesLayout messages={messages} />
+  try {
+    const result = await apiFetch<unknown>('/messaging/pending')
+    const messages: Message[] = Array.isArray(result) ? result : []
+    return <MessagesLayout messages={messages} />
+  } catch {
+    return <MessagesLayout messages={[]} />
+  }
 }
 
 function Skeleton() {
@@ -26,7 +31,7 @@ export default function MensagensPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Mensagens</h2>
-        <p className="text-sm text-[#5B657A] mt-1">Pendentes de resposta</p>
+        <p className="text-sm text-[#5B657A] mt-1">Pós-venda — pendentes primeiro</p>
       </div>
       <Suspense fallback={<Skeleton />}>
         <MessagesData />

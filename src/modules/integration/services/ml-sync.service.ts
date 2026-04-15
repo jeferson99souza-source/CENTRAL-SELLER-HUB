@@ -148,7 +148,9 @@ export class MlSyncService {
 
       for (const order of allOrders) {
         try {
-          const packId = order.pack_id ?? order.id;
+          // ML mensagens exigem um pack_id real — orders sem pack não têm thread
+          if (!order.pack_id) continue;
+          const packId = order.pack_id;
           const messagesData = (await this.mlService.getMessages(accessToken, String(packId), account.sellerId)) as { messages: MlMessage[] };
           const mlMessages = messagesData?.messages ?? [];
           mlMessages.sort((a, b) => new Date(a.message_date.received).getTime() - new Date(b.message_date.received).getTime());
@@ -171,19 +173,23 @@ export class MlSyncService {
               );
             }
 
+            const orderStatus = order.status ?? undefined;
+            const shippingStatus = order.shipping?.status ?? undefined;
+
             const exists = await this.messageRepo.findOne({ where: { externalId, tenantId: account.tenantId } });
             if (exists) {
               const updates: Record<string, unknown> = {};
               if (!exists.buyerName) updates.buyerName = buyerName;
               if (!exists.itemTitle) updates.itemTitle = itemTitle;
+              // Sempre atualiza status de pedido/envio (pode ter mudado)
+              updates.orderStatus = orderStatus;
+              updates.shippingStatus = shippingStatus;
               // Corrige mensagens salvas com conteúdo vazio por bug antigo de parsing
               if (!exists.content && content && sender === 'cliente') {
                 updates.content = content;
                 updates.status = 'pending';
               }
-              if (Object.keys(updates).length) {
-                await this.messageRepo.update(exists.id, updates);
-              }
+              await this.messageRepo.update(exists.id, updates);
               continue;
             }
 
@@ -197,6 +203,7 @@ export class MlSyncService {
               orderId: String(order.id),
               packId: String(packId),
               externalId, buyerId, buyerName, itemTitle, sender, content,
+              orderStatus, shippingStatus,
               status: sender === 'vendedor' || isAutoNotification ? 'replied' : 'pending',
               slaDeadline,
             });
@@ -217,8 +224,9 @@ export class MlSyncService {
   private async syncComplaints(account: MarketplaceAccount, accessToken: string): Promise<number> {
     let synced = 0;
     try {
-      const data = (await this.mlService.getClaims(accessToken, account.sellerId)) as { data: MlClaim[] };
-      const claims = data?.data ?? [];
+      const data = (await this.mlService.getClaims(accessToken, account.sellerId)) as { results: MlClaim[] };
+      const claims = data?.results ?? [];
+      this.logger.log(`Reclamações: ${claims.length} para seller=${account.sellerId}`);
 
       // Helpers de reason compartilhados
       const RETURN_REASONS = ['PDD', 'ITEM_NOT_AS_DESCRIBED', 'WANTS_RETURN', 'PRODUCT_DAMAGED'];
@@ -242,32 +250,37 @@ export class MlSyncService {
         const isReturn = RETURN_REASONS.some((r) => (claim.reason_id ?? '').startsWith(r));
         const reason = resolveReason(claim.reason_id ?? '');
 
-        // Atualiza campos novos em registros já existentes (isReturn, reason legível)
+        // Atualiza campos novos em registros já existentes (isReturn, reason legível, vistoria, tracking)
         if (exists) {
           const needsUpdate = !exists.isReturn && isReturn;
           const reasonIsRawCode = exists.reason === claim.reason_id && reason !== claim.reason_id;
-          if (needsUpdate || reasonIsRawCode || !exists.buyerName) {
-            const updates: Record<string, unknown> = {};
-            if (needsUpdate) { updates.isReturn = true; updates.stage = 'opened'; }
-            if (reasonIsRawCode) updates.reason = reason;
-            if (!exists.buyerName) {
-              const claimOrderId = claim.order_id ?? claim.resource_id;
-              if (claimOrderId) {
-                try {
-                  const order = (await this.mlService.getOrderById(accessToken, String(claimOrderId))) as any;
-                  if (order) {
-                    const fullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
-                    updates.buyerName = order.buyer?.nickname || fullName || undefined;
-                    updates.itemTitle = order.order_items?.[0]?.item?.title ?? undefined;
-                    updates.orderId = String(claimOrderId);
-                  }
-                } catch { /* segue */ }
-              }
+          const updates: Record<string, unknown> = {};
+          if (needsUpdate) { updates.isReturn = true; updates.stage = 'opened'; }
+          if (reasonIsRawCode) updates.reason = reason;
+          if (!exists.buyerName) {
+            const claimOrderId = claim.order_id ?? claim.resource_id;
+            if (claimOrderId) {
+              try {
+                const order = (await this.mlService.getOrderById(accessToken, String(claimOrderId))) as any;
+                if (order) {
+                  const fullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
+                  updates.buyerName = order.buyer?.nickname || fullName || undefined;
+                  updates.itemTitle = order.order_items?.[0]?.item?.title ?? undefined;
+                  updates.orderId = String(claimOrderId);
+                }
+              } catch { /* segue */ }
             }
-            if (Object.keys(updates).length) {
-              await this.complaintRepo.update(exists.id, updates);
-              this.logger.log(`Reclamação ${externalId} atualizada: ${JSON.stringify(Object.keys(updates))}`);
-            }
+          }
+          // Sempre tenta atualizar vistoria + tracking para devoluções
+          if (isReturn) {
+            const returnData = await this.fetchReturnDetails(accessToken, externalId);
+            if (returnData.vistoraRequired !== undefined) updates.vistoraRequired = returnData.vistoraRequired;
+            if (returnData.returnShipmentStatus) updates.returnShipmentStatus = returnData.returnShipmentStatus;
+            if (returnData.returnTrackingCode) updates.returnTrackingCode = returnData.returnTrackingCode;
+          }
+          if (Object.keys(updates).length) {
+            await this.complaintRepo.update(exists.id, updates);
+            this.logger.log(`Reclamação ${externalId} atualizada: ${JSON.stringify(Object.keys(updates))}`);
           }
           continue;
         }
@@ -291,6 +304,16 @@ export class MlSyncService {
           } catch { /* segue sem dados do pedido */ }
         }
 
+        let vistoraRequired = false;
+        let returnShipmentStatus: string | undefined;
+        let returnTrackingCode: string | undefined;
+        if (isReturn) {
+          const returnData = await this.fetchReturnDetails(accessToken, externalId);
+          vistoraRequired = returnData.vistoraRequired ?? false;
+          returnShipmentStatus = returnData.returnShipmentStatus;
+          returnTrackingCode = returnData.returnTrackingCode;
+        }
+
         await this.complaintRepo.save({
           tenantId: account.tenantId, externalId, marketplace: 'mercadolivre',
           reason,
@@ -299,6 +322,7 @@ export class MlSyncService {
           isReturn,
           stage: isReturn ? 'opened' : undefined,
           slaDeadline, orderId, buyerName, itemTitle,
+          vistoraRequired, returnShipmentStatus, returnTrackingCode,
         });
         synced++;
       }
@@ -306,6 +330,29 @@ export class MlSyncService {
       this.logger.error(`Erro ao buscar reclamações: ${(err as Error).message}`);
     }
     return synced;
+  }
+
+  private async fetchReturnDetails(accessToken: string, claimId: string): Promise<{
+    vistoraRequired?: boolean;
+    returnShipmentStatus?: string;
+    returnTrackingCode?: string;
+  }> {
+    const result: { vistoraRequired?: boolean; returnShipmentStatus?: string; returnTrackingCode?: string } = {};
+    try {
+      const detail = (await this.mlService.getClaimDetail(accessToken, claimId)) as any;
+      const sellerPlayer = detail?.players?.find?.((p: any) => p.role === 'respondent') ?? detail?.players?.seller;
+      const actions: string[] = sellerPlayer?.available_actions ?? [];
+      result.vistoraRequired = actions.includes('return_review_ok');
+    } catch { /* segue */ }
+    try {
+      const returns = (await this.mlService.getClaimReturns(accessToken, claimId)) as any;
+      const shipment = returns?.shipments?.[0];
+      if (shipment) {
+        result.returnShipmentStatus = shipment.status ?? undefined;
+        result.returnTrackingCode = shipment.tracking_number ?? undefined;
+      }
+    } catch { /* segue */ }
+    return result;
   }
 
   // ─── Perguntas ───────────────────────────────────────────────────────────────
@@ -387,7 +434,15 @@ export class MlSyncService {
       for (const order of orders) {
         const externalId = String(order.id);
         const exists = await this.orderRepo.findOne({ where: { externalId, tenantId: account.tenantId } });
-        if (exists) continue;
+        if (exists) {
+          // Atualiza status e envio se mudaram
+          await this.orderRepo.update(exists.id, {
+            status: order.status ?? exists.status,
+            shippingStatus: order.shipping?.status ?? exists.shippingStatus,
+            trackingNumber: order.shipping?.tracking_number ?? exists.trackingNumber,
+          });
+          continue;
+        }
 
         const buyerFullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
         const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';

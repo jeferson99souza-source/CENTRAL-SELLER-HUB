@@ -175,25 +175,27 @@ export class MercadoLivreService {
     buyerId: string,
     text: string,
   ): Promise<unknown> {
-    this.logger.log(`Enviando mensagem pack=${packId} buyer=${buyerId}`);
-    // Formato correto do payload de envio conforme docs ML
-    const response = await fetch(`${this.baseUrl}/messages/packs/${packId}/sellers/${sellerId}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerId} buyer=${buyerId}`);
+    const response = await fetch(
+      `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: { user_id: Number(sellerId) },
+          to: { user_id: Number(buyerId) },
+          text: { plain: text },
+        }),
       },
-      body: JSON.stringify({
-        from: { user_id: Number(sellerId) },
-        to: { user_id: Number(buyerId) },
-        text: { plain: text },
-      }),
-    });
+    );
 
     if (!response.ok) {
       const err = await response.text();
-      this.logger.error(`Erro ao enviar mensagem ML: ${err}`);
-      throw new Error(`Erro ao enviar mensagem: ${response.status}`);
+      this.logger.error(`Erro ao enviar mensagem ML ${response.status}: ${err}`);
+      throw new Error(`ML ${response.status}: ${err}`);
     }
 
     return response.json();
@@ -212,11 +214,20 @@ export class MercadoLivreService {
 
   async getClaims(accessToken: string, sellerId: string): Promise<unknown> {
     this.logger.log(`Buscando reclamações seller=${sellerId}`);
-    // Endpoint atualizado: /post-purchase/v2/claims (v1 deprecated desde mar/2025)
     return this.mlGet(
-      `/post-purchase/v2/claims/search?seller_id=${sellerId}&player_role=respondent&limit=50`,
+      `/post-purchase/v1/claims/search?seller_id=${sellerId}&player_role=respondent&limit=50`,
       accessToken,
     );
+  }
+
+  async getClaimDetail(accessToken: string, claimId: string): Promise<unknown> {
+    this.logger.log(`Buscando detalhes da reclamação ${claimId}`);
+    return this.mlGet(`/post-purchase/v1/claims/${claimId}`, accessToken);
+  }
+
+  async getClaimReturns(accessToken: string, claimId: string): Promise<unknown> {
+    this.logger.log(`Buscando devolução da reclamação ${claimId}`);
+    return this.mlGet(`/post-purchase/v1/claims/${claimId}/returns`, accessToken);
   }
 
   async getOrderById(accessToken: string, orderId: string): Promise<unknown> {
@@ -240,6 +251,11 @@ export class MercadoLivreService {
     if (!response.ok) {
       const err = await response.text();
       this.logger.error(`Teste de conexão ML falhou ${response.status}: ${err}`);
+      if (response.status === 429) {
+        throw new Error(
+          `Rate limit do Mercado Livre atingido (HTTP 429) — aguarde alguns segundos e tente novamente`,
+        );
+      }
       throw new UnauthorizedException(
         `Token inválido ou sem permissão (HTTP ${response.status})`,
       );
@@ -270,6 +286,24 @@ export class MercadoLivreService {
     }
 
     return response.json();
+  }
+
+  async blockBuyer(accessToken: string, sellerId: string, buyerId: string): Promise<unknown> {
+    this.logger.log(`Bloqueando comprador ${buyerId} para seller=${sellerId}`);
+    const response = await fetch(`${this.baseUrl}/users/${sellerId}/blacklisted_users`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ user: { id: Number(buyerId) } }),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      this.logger.warn(`Aviso ao bloquear comprador ${buyerId}: ${err}`);
+      // Não lança exceção — bloqueio local continua mesmo se ML rejeitar
+    }
+    return { blocked: true };
   }
 
   async getOrders(accessToken: string, sellerId: string, daysBack = 90, offset = 0): Promise<unknown> {

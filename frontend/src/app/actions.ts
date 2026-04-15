@@ -87,6 +87,43 @@ export async function updateComplaintNotes(id: string, notes: string) {
   return { success: true }
 }
 
+export async function dismissQuestion(questionId: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const res = await fetch(`${API_URL}/questions/${questionId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return { error: await res.text() }
+  return { success: true }
+}
+
+export async function blockBuyer(questionId: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const res = await fetch(`${API_URL}/questions/${questionId}/block-buyer`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return { error: await res.text() }
+  return { success: true }
+}
+
+export async function aiSuggestQuestion(questionId: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const res = await fetch(`${API_URL}/questions/${questionId}/ai-suggest`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) return { error: await res.text() }
+  const body = await res.json()
+  return { suggestion: body.suggestion as string }
+}
+
 export async function answerQuestion(questionId: string, text: string) {
   const store = await cookies()
   const token = store.get('token')?.value

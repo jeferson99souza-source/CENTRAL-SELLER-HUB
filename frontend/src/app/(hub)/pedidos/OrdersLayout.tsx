@@ -1,6 +1,7 @@
 'use client'
 
-import { Package, Clock, User, DollarSign } from 'lucide-react'
+import { useState } from 'react'
+import { Package, Clock, User, DollarSign, Eye, EyeOff } from 'lucide-react'
 import type { Order } from '@/lib/api'
 
 function formatDate(iso: string) {
@@ -10,6 +11,8 @@ function formatDate(iso: string) {
 type Props = { orders: Order[] }
 
 export default function OrdersLayout({ orders }: Props) {
+  const [showTitle, setShowTitle] = useState(true)
+
   if (!orders.length) {
     return (
       <div className="text-center py-16 text-gray-400">
@@ -21,6 +24,17 @@ export default function OrdersLayout({ orders }: Props) {
 
   return (
     <div className="space-y-3 pb-8">
+      {/* Controle de visibilidade */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowTitle((v) => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-[#DE7100] transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm"
+        >
+          {showTitle ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {showTitle ? 'Ocultar produto' : 'Mostrar produto'}
+        </button>
+      </div>
+
       {orders.map((o) => (
         <div key={o.id} className="bg-white rounded-3xl p-5 shadow-sm">
           <div className="flex items-start justify-between gap-2 mb-3">
@@ -36,10 +50,20 @@ export default function OrdersLayout({ orders }: Props) {
           </div>
 
           <div className="flex flex-col gap-2 mb-3">
-            <div className="flex items-center gap-1.5">
-              <Package className="w-4 h-4 text-orange-400 shrink-0" />
-              <span className="text-sm text-gray-700 font-medium">{o.itemQuantity}x {o.itemTitle}</span>
-            </div>
+            {showTitle && o.itemTitle && (
+              <div className="flex items-start gap-1.5">
+                <Package className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                <span className="text-sm text-gray-700 font-medium leading-snug">
+                  {o.itemQuantity}x {o.itemTitle}
+                </span>
+              </div>
+            )}
+            {!showTitle && (
+              <div className="flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-orange-400 shrink-0" />
+                <span className="text-sm text-gray-400 italic">{o.itemQuantity}x produto oculto</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               <DollarSign className="w-4 h-4 text-emerald-500 shrink-0" />
               <span className="text-sm font-bold text-emerald-600">

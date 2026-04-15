@@ -3,8 +3,13 @@ import { apiFetch, type Order } from '@/lib/api'
 import OrdersLayout from './OrdersLayout'
 
 async function OrdersData() {
-  const orders = await apiFetch<Order[]>('/orders')
-  return <OrdersLayout orders={orders} />
+  try {
+    const result = await apiFetch<unknown>('/orders')
+    const orders: Order[] = Array.isArray(result) ? result : []
+    return <OrdersLayout orders={orders} />
+  } catch {
+    return <OrdersLayout orders={[]} />
+  }
 }
 
 function Skeleton() {

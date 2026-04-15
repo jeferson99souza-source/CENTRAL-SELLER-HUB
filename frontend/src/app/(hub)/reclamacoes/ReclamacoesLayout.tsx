@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, Clock, User, Package, RotateCcw, ChevronRight, FileText, Save, AlertTriangle } from 'lucide-react'
+import { AlertCircle, Clock, User, Package, RotateCcw, ChevronRight, FileText, Save, AlertTriangle, Truck, Eye } from 'lucide-react'
 import type { Complaint } from '@/lib/api'
 import { updateComplaintStage, updateComplaintNotes } from '@/app/actions'
 
@@ -88,6 +88,31 @@ function ReturnCard({ complaint: initial }: { complaint: Complaint }) {
           <span className="mx-1">·</span>
           <span>Aberta: {formatDate(complaint.createdAt)}</span>
         </div>
+
+        {/* Vistoria pendente */}
+        {complaint.vistoraRequired && (
+          <div className="flex items-center gap-1.5 mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-2xl">
+            <Eye className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+            <span className="text-xs font-semibold text-orange-700">Vistoria pendente — produto aguarda revisão</span>
+          </div>
+        )}
+
+        {/* Rastreio da devolução */}
+        {(complaint.returnShipmentStatus || complaint.returnTrackingCode) && (
+          <div className="flex items-center gap-1.5 mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-2xl">
+            <Truck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <div className="flex flex-col">
+              {complaint.returnShipmentStatus && (
+                <span className="text-xs font-semibold text-blue-700 capitalize">
+                  Envio: {complaint.returnShipmentStatus.replace(/_/g, ' ')}
+                </span>
+              )}
+              {complaint.returnTrackingCode && (
+                <span className="text-[10px] text-blue-500">Rastreio: {complaint.returnTrackingCode}</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Timeline */}

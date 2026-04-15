@@ -37,6 +37,12 @@ export class Message {
   @Column({ name: 'item_title', nullable: true })
   itemTitle: string;
 
+  @Column({ name: 'order_status', nullable: true })
+  orderStatus: string;
+
+  @Column({ name: 'shipping_status', nullable: true })
+  shippingStatus: string;
+
   @Column({ type: 'varchar' })
   sender: MessageSender;
 

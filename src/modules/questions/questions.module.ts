@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '../auth/auth.module';
 import { IntegrationModule } from '../integration/integration.module';
 import { Question } from './entities/question.entity';
@@ -10,6 +11,7 @@ import { QuestionsController } from './questions.controller';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Question, MarketplaceAccount]),
+    ConfigModule,
     AuthModule,
     IntegrationModule,
   ],

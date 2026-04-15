@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message } from './entities/message.entity';
@@ -8,6 +8,8 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
 
 @Injectable()
 export class MessagingService {
+  private readonly logger = new Logger(MessagingService.name);
+
   constructor(
     @InjectRepository(Message)
     private readonly messageRepo: Repository<Message>,
@@ -44,6 +46,17 @@ export class MessagingService {
     });
   }
 
+  // Retorna as últimas 100 mensagens (todas) — pendentes primeiro, depois mais recentes
+  async findAll(tenantId: string): Promise<Message[]> {
+    return this.messageRepo
+      .createQueryBuilder('m')
+      .where('m.tenantId = :tenantId', { tenantId })
+      .orderBy(`CASE WHEN m.status = 'pending' THEN 0 ELSE 1 END`, 'ASC')
+      .addOrderBy('m.createdAt', 'DESC')
+      .take(100)
+      .getMany();
+  }
+
   async findByPack(tenantId: string, packId: string): Promise<Message[]> {
     return this.messageRepo.find({
       where: { tenantId, packId },
@@ -72,23 +85,36 @@ export class MessagingService {
     });
     if (!message) throw new NotFoundException('Mensagem não encontrada.');
 
-    const account = await this.accountRepo.findOne({
-      where: { id: message.marketplaceAccountId, tenantId },
-    });
-    if (!account) throw new NotFoundException('Conta do marketplace não encontrada.');
+    // Tenta pelo ID direto; se não achar (mensagem antiga sem marketplaceAccountId), busca qualquer conta ML ativa
+    const account = message.marketplaceAccountId
+      ? await this.accountRepo.findOne({ where: { id: message.marketplaceAccountId, tenantId } })
+      : null;
+    const resolvedAccount = account
+      ?? await this.accountRepo.findOne({ where: { tenantId, marketplace: 'mercadolivre', isActive: true } });
+    if (!resolvedAccount) throw new NotFoundException('Conta Mercado Livre não encontrada.');
 
-    const isExpired = !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
+    const isExpired = !resolvedAccount.tokenExpiresAt || resolvedAccount.tokenExpiresAt < new Date();
     const accessToken = isExpired
-      ? await this.mlService.refreshAccountToken(account)
-      : this.encryption.decrypt(account.accessTokenEnc);
+      ? await this.mlService.refreshAccountToken(resolvedAccount)
+      : this.encryption.decrypt(resolvedAccount.accessTokenEnc);
 
-    await this.mlService.sendMessage(
-      accessToken,
-      message.packId,
-      account.sellerId,
-      message.buyerId,
-      text.trim(),
-    );
+    // Validação básica antes de chamar ML
+    if (!message.packId) throw new BadRequestException('Mensagem sem packId — não é possível responder.');
+    if (!message.buyerId || message.buyerId === 'undefined') throw new BadRequestException('Comprador não identificado nesta mensagem.');
+
+    try {
+      await this.mlService.sendMessage(
+        accessToken,
+        message.packId,
+        resolvedAccount.sellerId,
+        message.buyerId,
+        text.trim(),
+      );
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Falha ao enviar mensagem: ${detail}`);
+      throw new InternalServerErrorException(detail || 'Falha ao enviar mensagem via Mercado Livre');
+    }
 
     await this.messageRepo.update(
       { id: messageId, tenantId },

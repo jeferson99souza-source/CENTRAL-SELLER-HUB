@@ -64,6 +64,19 @@ export class Complaint {
   @Column({ type: 'text', nullable: true })
   notes: string;
 
+  // Dados de devolução do ML
+  @ApiProperty()
+  @Column({ default: false })
+  vistoraRequired: boolean;
+
+  @ApiProperty()
+  @Column({ nullable: true })
+  returnShipmentStatus: string;
+
+  @ApiProperty()
+  @Column({ nullable: true })
+  returnTrackingCode: string;
+
   @ApiProperty()
   @Column({ type: 'timestamp' })
   slaDeadline: Date;

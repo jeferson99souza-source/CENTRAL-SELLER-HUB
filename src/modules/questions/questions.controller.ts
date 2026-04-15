@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
@@ -34,5 +34,24 @@ export class QuestionsController {
     @Body('text') text: string,
   ) {
     return this.questionsService.answerQuestion(tenantId, id, text);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Dispensar pergunta (ocultar localmente)' })
+  dismissQuestion(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.questionsService.dismissQuestion(tenantId, id);
+  }
+
+  @Post(':id/block-buyer')
+  @ApiOperation({ summary: 'Bloquear comprador no ML e dispensar pergunta' })
+  blockBuyer(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.questionsService.blockBuyer(tenantId, id);
+  }
+
+  @Post(':id/ai-suggest')
+  @ApiOperation({ summary: 'Obter sugestão de resposta via IA' })
+  aiSuggest(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.questionsService.aiSuggest(tenantId, id);
   }
 }

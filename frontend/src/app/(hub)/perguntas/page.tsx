@@ -3,9 +3,13 @@ import { apiFetch, type Question } from '@/lib/api'
 import QuestionsLayout from './QuestionsLayout'
 
 async function QuestionsData() {
-  // Chamada default para pegar as perguntas que não foram respondidas
-  const questions = await apiFetch<Question[]>('/questions?status=unanswered')
-  return <QuestionsLayout questions={questions} />
+  try {
+    const result = await apiFetch<unknown>('/questions?status=unanswered')
+    const questions: Question[] = Array.isArray(result) ? result : []
+    return <QuestionsLayout questions={questions} />
+  } catch {
+    return <QuestionsLayout questions={[]} />
+  }
 }
 
 function Skeleton() {

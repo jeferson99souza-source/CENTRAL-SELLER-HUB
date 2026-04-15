@@ -1,41 +1,40 @@
-import Link from 'next/link'
-import { LayoutGrid, AlertCircle, MessageSquare, User, Package, HelpCircle } from 'lucide-react'
+import { User } from 'lucide-react'
 import { logout } from '@/app/actions'
-
-const navItems = [
-  { href: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
-  { href: '/pedidos', icon: Package, label: 'Pedidos' },
-  { href: '/perguntas', icon: HelpCircle, label: 'Perguntas' },
-  { href: '/reclamacoes', icon: AlertCircle, label: 'Reclamações' },
-  { href: '/mensagens', icon: MessageSquare, label: 'Mensagens' },
-]
+import SideNav from './SideNav'
 
 export default function HubLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#F8F9FA] pb-24 font-sans text-[#1A1A1A]">
-      <header className="px-6 py-5 flex items-center justify-between border-b border-gray-100 bg-white">
-        <h1 className="text-xl font-bold text-[#DE7100]">Central Seller Hub</h1>
-        <form action={logout}>
-          <button type="submit" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
-            <User className="w-5 h-5 text-gray-600" />
-          </button>
-        </form>
-      </header>
+    <div className="min-h-screen bg-[#F8F9FA] flex font-sans text-[#1A1A1A]">
 
-      <main className="px-6 py-6">{children}</main>
+      {/* Sidebar vertical esquerda */}
+      <aside className="fixed left-0 top-0 h-screen w-52 bg-white border-r border-gray-100 flex flex-col z-50 shadow-sm">
+        {/* Logo */}
+        <div className="px-5 py-5 border-b border-gray-100">
+          <h1 className="text-base font-bold text-[#DE7100] leading-tight">Central Seller<br /><span className="text-gray-400 font-medium text-xs">HUB</span></h1>
+        </div>
 
-      <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200/50 pb-safe pt-2 px-6 flex justify-around items-center z-50">
-        {navItems.map(({ href, icon: Icon, label }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex flex-col items-center gap-1 p-2 text-[#9BA5B7] hover:text-[#DE7100] transition-colors"
-          >
-            <Icon className="w-6 h-6" strokeWidth={2} />
-            <span className="text-[10px] font-semibold tracking-wide">{label}</span>
-          </Link>
-        ))}
-      </nav>
+        {/* Nav items — componente cliente para active state */}
+        <SideNav />
+
+        {/* Logout */}
+        <div className="px-4 pb-5 pt-2 border-t border-gray-100">
+          <form action={logout}>
+            <button
+              type="submit"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+            >
+              <User className="w-4 h-4 shrink-0" />
+              Sair
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      {/* Conteúdo principal */}
+      <div className="ml-52 flex-1 min-w-0">
+        <main className="px-6 py-6">{children}</main>
+      </div>
+
     </div>
   )
 }
