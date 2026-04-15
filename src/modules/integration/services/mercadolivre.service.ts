@@ -219,6 +219,26 @@ export class MercadoLivreService {
     return this.mlGet(`/items/${itemId}`, accessToken);
   }
 
+  /**
+   * Testa se o token está válido fazendo uma chamada ao /users/me.
+   * Retorna os dados do usuário logado ou lança exceção se inválido.
+   */
+  async testConnection(accessToken: string): Promise<MlUserProfile> {
+    const response = await fetch(`${this.baseUrl}/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      this.logger.error(`Teste de conexão ML falhou ${response.status}: ${err}`);
+      throw new UnauthorizedException(
+        `Token inválido ou sem permissão (HTTP ${response.status})`,
+      );
+    }
+
+    return response.json() as Promise<MlUserProfile>;
+  }
+
   async getUser(accessToken: string, userId: string): Promise<unknown> {
     return this.mlGet(`/users/${userId}`, accessToken);
   }

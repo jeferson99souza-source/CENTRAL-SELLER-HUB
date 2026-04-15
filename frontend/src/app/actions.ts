@@ -45,7 +45,7 @@ export async function logout() {
 export async function syncML() {
   const store = await cookies()
   const token = store.get('token')?.value
-  
+
   if (!token) return { error: 'Não autorizado' }
 
   const res = await fetch(`${API_URL}/integration/mercadolivre/sync`, {
@@ -57,5 +57,26 @@ export async function syncML() {
     return { error: 'Falha na sincronização' }
   }
 
-  return { success: true }
+  const body = await res.json()
+  return { success: true, data: body.data }
+}
+
+export async function diagnoseML() {
+  const store = await cookies()
+  const token = store.get('token')?.value
+
+  if (!token) return { error: 'Não autorizado' }
+
+  const res = await fetch(`${API_URL}/integration/mercadolivre/diagnose`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    return { error: `Erro ${res.status}: ${text}` }
+  }
+
+  const body = await res.json()
+  return { data: body.data }
 }

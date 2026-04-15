@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { apiFetch, type KPIs } from '@/lib/api'
 import { AlertCircle, MessageSquare, ShoppingBag, Clock } from 'lucide-react'
 import SyncButton from './SyncButton'
+import DiagnoseButton from './DiagnoseButton'
 
 async function KPICards() {
   const kpis = await apiFetch<KPIs>('/dashboard/kpis?period=30d')
@@ -89,7 +90,10 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
           <p className="text-sm text-[#5B657A] mt-1">Resumo dos últimos 30 dias</p>
         </div>
-        <SyncButton />
+        <div className="flex items-center gap-2">
+          <DiagnoseButton />
+          <SyncButton />
+        </div>
       </div>
       <Suspense fallback={<KPISkeleton />}>
         <KPICards />

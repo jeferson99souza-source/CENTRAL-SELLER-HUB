@@ -74,6 +74,7 @@ export class MlSyncService {
     complaints: number;
     questions: number;
     orders: number;
+    errors: string[];
   }> {
     const accounts = await this.accountRepo.find({
       where: { tenantId, marketplace: 'mercadolivre', isActive: true },
@@ -81,17 +82,20 @@ export class MlSyncService {
 
     if (!accounts.length) {
       this.logger.warn(`Nenhuma conta ML ativa para tenant=${tenantId}`);
-      return { accounts: 0, messages: 0, complaints: 0, questions: 0, orders: 0 };
+      return { accounts: 0, messages: 0, complaints: 0, questions: 0, orders: 0, errors: ['Nenhuma conta Mercado Livre ativa encontrada'] };
     }
 
     let totalMessages = 0;
     let totalComplaints = 0;
     let totalQuestions = 0;
     let totalOrders = 0;
+    const errors: string[] = [];
 
     for (const account of accounts) {
       try {
         const accessToken = await this.getValidToken(account);
+        this.logger.log(`Token OK para seller=${account.sellerId}. Iniciando sync...`);
+
         const [messages, complaints, questions, orders] = await Promise.all([
           this.syncMessages(account, accessToken),
           this.syncComplaints(account, accessToken),
@@ -104,16 +108,19 @@ export class MlSyncService {
         totalOrders += orders;
 
         await this.accountRepo.update(account.id, { lastSyncAt: new Date() });
+        this.logger.log(`Conta ${account.sellerId} OK — msg=${messages} rec=${complaints} perguntas=${questions} pedidos=${orders}`);
       } catch (err) {
-        this.logger.error(`Erro ao sincronizar conta ${account.id}: ${(err as Error).message}`);
+        const msg = `Conta seller=${account.sellerId}: ${(err as Error).message}`;
+        this.logger.error(`Erro ao sincronizar ${msg}`);
+        errors.push(msg);
       }
     }
 
     this.logger.log(
-      `Sync ML concluído — tenant=${tenantId} messages=${totalMessages} complaints=${totalComplaints} questions=${totalQuestions} orders=${totalOrders}`,
+      `Sync ML concluído — tenant=${tenantId} messages=${totalMessages} complaints=${totalComplaints} questions=${totalQuestions} orders=${totalOrders} errors=${errors.length}`,
     );
 
-    return { accounts: accounts.length, messages: totalMessages, complaints: totalComplaints, questions: totalQuestions, orders: totalOrders };
+    return { accounts: accounts.length, messages: totalMessages, complaints: totalComplaints, questions: totalQuestions, orders: totalOrders, errors };
   }
 
   // ─── Mensagens ──────────────────────────────────────────────────────────────
@@ -186,7 +193,9 @@ export class MlSyncService {
             });
             synced++;
           }
-        } catch { /* ignora erros por pedido */ }
+        } catch (orderErr) {
+          this.logger.warn(`Mensagens pedido=${order.id} ignoradas: ${(orderErr as Error).message}`);
+        }
       }
     } catch (err) {
       this.logger.error(`Erro ao buscar mensagens: ${(err as Error).message}`);

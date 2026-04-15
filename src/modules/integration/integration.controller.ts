@@ -12,12 +12,16 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/tenant.decorator';
 import { MercadoLivreService } from './services/mercadolivre.service';
 import { MlSyncService } from './services/ml-sync.service';
 import { ConnectAccountDto } from './dto/connect-account.dto';
+import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
+import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
 
 @ApiTags('integration')
 @Controller('integration')
@@ -25,6 +29,9 @@ export class IntegrationController {
   constructor(
     private readonly mlService: MercadoLivreService,
     private readonly mlSyncService: MlSyncService,
+    private readonly encryption: TokenEncryptionService,
+    @InjectRepository(MarketplaceAccount)
+    private readonly accountRepo: Repository<MarketplaceAccount>,
   ) {}
 
   // ─── Mercado Livre ──────────────────────────────────────────────────────────
@@ -89,5 +96,86 @@ export class IntegrationController {
   async syncMercadoLivre(@TenantId() tenantId: string) {
     const result = await this.mlSyncService.syncForTenant(tenantId);
     return { data: result };
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiOperation({
+    summary: 'Diagnosticar conexão com o Mercado Livre',
+    description:
+      'Verifica contas cadastradas, validade dos tokens e faz um teste real na API do ML.',
+  })
+  @Get('mercadolivre/diagnose')
+  async diagnoseMercadoLivre(@TenantId() tenantId: string) {
+    const accounts = await this.accountRepo.find({
+      where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+    });
+
+    if (!accounts.length) {
+      return {
+        data: {
+          ok: false,
+          message:
+            'Nenhuma conta Mercado Livre ativa encontrada para este tenant. Conecte uma conta em /integration/mercadolivre/connect',
+          accounts: [],
+        },
+      };
+    }
+
+    const results = await Promise.all(
+      accounts.map(async (account) => {
+        const now = new Date();
+        const isExpired =
+          !account.tokenExpiresAt || account.tokenExpiresAt < now;
+        const minutesUntilExpiry = account.tokenExpiresAt
+          ? Math.round(
+              (account.tokenExpiresAt.getTime() - now.getTime()) / 60000,
+            )
+          : null;
+
+        let tokenTest: { ok: boolean; sellerId?: string; nickname?: string; error?: string };
+        try {
+          let accessToken: string;
+          if (isExpired) {
+            accessToken = await this.mlService.refreshAccountToken(account);
+          } else {
+            accessToken = this.encryption.decrypt(account.accessTokenEnc);
+          }
+          const profile = await this.mlService.testConnection(accessToken);
+          tokenTest = {
+            ok: true,
+            sellerId: String(profile.id),
+            nickname: profile.nickname,
+          };
+        } catch (err) {
+          tokenTest = { ok: false, error: (err as Error).message };
+        }
+
+        return {
+          accountId: account.id,
+          sellerId: account.sellerId,
+          sellerName: account.sellerName,
+          companyId: account.companyId,
+          lastSyncAt: account.lastSyncAt,
+          tokenExpiresAt: account.tokenExpiresAt,
+          tokenExpired: isExpired,
+          minutesUntilExpiry,
+          tokenTest,
+        };
+      }),
+    );
+
+    const allOk = results.every((r) => r.tokenTest.ok);
+
+    return {
+      data: {
+        ok: allOk,
+        totalAccounts: accounts.length,
+        accounts: results,
+        tip: allOk
+          ? 'Tokens válidos. Chame POST /integration/mercadolivre/sync para sincronizar os dados.'
+          : 'Um ou mais tokens estão inválidos. Reconecte a conta via /integration/mercadolivre/connect.',
+      },
+    };
   }
 }
