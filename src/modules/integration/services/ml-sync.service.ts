@@ -106,7 +106,7 @@ export class MlSyncService {
       )) as { results: MlOrder[] };
 
       const orders = ordersData?.results ?? [];
-      this.logger.log(`Pedidos encontrados para seller=${account.sellerId}: ${orders.length}`);
+      this.logger.log(`Pedidos encontrados para seller=${account.sellerId}: ${orders.length} (total API: ${(ordersData as any)?.paging?.total ?? '?'})`);
 
       for (const order of orders) {
         try {

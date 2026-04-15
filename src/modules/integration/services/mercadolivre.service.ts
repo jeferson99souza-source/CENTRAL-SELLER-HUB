@@ -213,10 +213,10 @@ export class MercadoLivreService {
   async getOrders(accessToken: string, sellerId: string, daysBack = 30): Promise<unknown> {
     const from = new Date();
     from.setDate(from.getDate() - daysBack);
-    const dateFrom = from.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateFrom = from.toISOString(); // ISO completo
     this.logger.log(`Buscando pedidos seller=${sellerId} desde ${dateFrom}`);
     return this.mlGet(
-      `/orders/search?seller=${sellerId}&sort=date_desc&order.date_created.from=${dateFrom}T00:00:00.000-00:00`,
+      `/orders/search?seller=${sellerId}&sort=date_desc&date_created.from=${encodeURIComponent(dateFrom)}`,
       accessToken,
     );
   }
