@@ -230,7 +230,7 @@ export class MercadoLivreService {
   async getClaims(accessToken: string, sellerId: string): Promise<unknown> {
     this.logger.log(`Buscando reclamações seller=${sellerId}`);
     return this.mlGet(
-      `/post-purchase/v1/claims/search?seller_id=${sellerId}&player_role=respondent&limit=50`,
+      `/post-purchase/v1/claims/search?seller_id=${sellerId}&player_role=respondent&player_user_id=${sellerId}&limit=50`,
       accessToken,
     );
   }
