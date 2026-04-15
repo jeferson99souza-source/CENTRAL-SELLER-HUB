@@ -175,20 +175,29 @@ export class MercadoLivreService {
     buyerId: string,
     text: string,
   ): Promise<unknown> {
-    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerId} buyer=${buyerId}`);
+    const sellerNum = parseInt(sellerId, 10);
+    const buyerNum = parseInt(buyerId, 10);
+
+    if (isNaN(sellerNum)) throw new Error(`sellerId inválido para envio: "${sellerId}"`);
+    if (isNaN(buyerNum)) throw new Error(`buyerId inválido para envio: "${buyerId}"`);
+
+    const payload = {
+      from: { user_id: sellerNum },
+      to: { user_id: buyerNum },
+      text: { plain: text },
+    };
+
+    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerNum} buyer=${buyerNum} payload=${JSON.stringify(payload)}`);
+
     const response = await fetch(
-      `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`,
+      `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`,
       {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
         },
-        body: JSON.stringify({
-          from: { user_id: Number(sellerId) },
-          to: { user_id: Number(buyerId) },
-          text: { plain: text },
-        }),
+        body: JSON.stringify(payload),
       },
     );
 
