@@ -10,6 +10,8 @@ import { Complaint } from '../complaints/entities/complaint.entity';
 import { IntegrationController } from './integration.controller';
 import { MercadoLivreService } from './services/mercadolivre.service';
 import { MlSyncService } from './services/ml-sync.service';
+import { MlWebhookService } from './services/ml-webhook.service';
+import { MlWebhookController } from './controllers/ml-webhook.controller';
 import { ShopeeService } from './services/shopee.service';
 import { AmazonService } from './services/amazon.service';
 import { OAuthStateService } from './services/oauth-state.service';
@@ -22,12 +24,13 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
     AuthModule,
     TypeOrmModule.forFeature([MarketplaceAccount, Message, Complaint]),
   ],
-  controllers: [IntegrationController],
+  controllers: [IntegrationController, MlWebhookController],
   providers: [
     OAuthStateService,
     TokenEncryptionService,
     MercadoLivreService,
     MlSyncService,
+    MlWebhookService,
     ShopeeService,
     AmazonService,
   ],
