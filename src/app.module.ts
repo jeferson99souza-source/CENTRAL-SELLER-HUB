@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { RedisModule } from './common/redis/redis.module';
 
 // Módulos da aplicação
 import { AuthModule } from './modules/auth/auth.module';
@@ -70,6 +71,9 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
         limit: 60,
       },
     ]),
+
+    // Redis global
+    RedisModule,
 
     // Módulos de negócio
     AuthModule,

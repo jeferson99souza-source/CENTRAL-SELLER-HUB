@@ -4,13 +4,17 @@ import {
   Patch,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { ComplaintsService } from './complaints.service';
 import { TenantId } from '../../common/decorators/tenant.decorator';
 
 @ApiTags('complaints')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('complaints')
 export class ComplaintsController {
   constructor(private readonly complaintsService: ComplaintsService) {}
