@@ -44,6 +44,13 @@ export class MessagingService {
     });
   }
 
+  async findByPack(tenantId: string, packId: string): Promise<Message[]> {
+    return this.messageRepo.find({
+      where: { tenantId, packId },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   async markAsReplied(tenantId: string, messageId: string): Promise<void> {
     await this.messageRepo.update(
       { id: messageId, tenantId },

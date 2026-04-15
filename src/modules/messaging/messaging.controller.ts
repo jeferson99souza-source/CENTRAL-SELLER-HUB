@@ -31,6 +31,12 @@ export class MessagingController {
     return this.messagingService.findPending(tenantId);
   }
 
+  @ApiOperation({ summary: 'Buscar thread completo por packId' })
+  @Get('packs/:packId')
+  findByPack(@TenantId() tenantId: string, @Param('packId') packId: string) {
+    return this.messagingService.findByPack(tenantId, packId);
+  }
+
   @ApiOperation({ summary: 'Responder mensagem via API do marketplace' })
   @ApiBody({ schema: { properties: { text: { type: 'string' } }, required: ['text'] } })
   @Post(':id/reply')

@@ -12,6 +12,7 @@ interface MlOrder {
   pack_id?: number;
   buyer: { id: number; nickname: string; first_name?: string; last_name?: string };
   date_created: string;
+  order_items?: { item: { id: string; title: string } }[];
 }
 
 interface MlMessage {
@@ -137,6 +138,7 @@ export class MlSyncService {
             );
             const buyerFullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
             const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';
+            const itemTitle = order.order_items?.[0]?.item?.title ?? undefined;
 
             await this.messageRepo.save({
               tenantId: account.tenantId,
@@ -146,6 +148,7 @@ export class MlSyncService {
               externalId,
               buyerId,
               buyerName,
+              itemTitle,
               sender,
               content: msg.text?.plain ?? '',
               status: 'pending',

@@ -34,6 +34,9 @@ export class Message {
   @Column({ name: 'buyer_name', nullable: true })
   buyerName: string;
 
+  @Column({ name: 'item_title', nullable: true })
+  itemTitle: string;
+
   @Column({ type: 'varchar' })
   sender: MessageSender;
 
