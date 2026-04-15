@@ -252,6 +252,26 @@ export class MercadoLivreService {
     return this.mlGet(`/users/${userId}`, accessToken);
   }
 
+  async answerQuestion(accessToken: string, questionId: number, text: string): Promise<unknown> {
+    this.logger.log(`Respondendo pergunta ${questionId}`);
+    const response = await fetch(`${this.baseUrl}/answers`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ question_id: questionId, text }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      this.logger.error(`Erro ao responder pergunta ${questionId}: ${err}`);
+      throw new Error(`Erro ao responder no ML: ${response.status} — ${err}`);
+    }
+
+    return response.json();
+  }
+
   async getOrders(accessToken: string, sellerId: string, daysBack = 90, offset = 0): Promise<unknown> {
     const now = new Date();
     const from = new Date();

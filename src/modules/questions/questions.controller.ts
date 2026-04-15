@@ -1,5 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { QuestionsService } from './questions.service';
@@ -23,5 +23,16 @@ export class QuestionsController {
   @ApiOperation({ summary: 'Listar perguntas sem resposta' })
   findPending(@TenantId() tenantId: string) {
     return this.questionsService.findPending(tenantId);
+  }
+
+  @Post(':id/answer')
+  @ApiOperation({ summary: 'Responder pergunta via API do Mercado Livre' })
+  @ApiBody({ schema: { properties: { text: { type: 'string' } }, required: ['text'] } })
+  answerQuestion(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body('text') text: string,
+  ) {
+    return this.questionsService.answerQuestion(tenantId, id, text);
   }
 }

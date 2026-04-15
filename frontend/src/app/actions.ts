@@ -61,6 +61,28 @@ export async function syncML() {
   return { success: true, data: body.data }
 }
 
+export async function answerQuestion(questionId: string, text: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+
+  const res = await fetch(`${API_URL}/questions/${questionId}/answer`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    return { error: `Erro ao responder: ${body}` }
+  }
+
+  return { success: true }
+}
+
 export async function diagnoseML() {
   const store = await cookies()
   const token = store.get('token')?.value

@@ -162,6 +162,7 @@ export class MlSyncService {
             const externalId = String(msg.id);
             const sender = msg.from?.user_id === sellerId ? 'vendedor' : 'cliente';
             const buyerId = String(msg.from?.user_id === sellerId ? msg.to?.user_id : msg.from?.user_id);
+            const content = (typeof msg.text === 'string' ? msg.text : (msg.text as any)?.plain ?? '').trim();
 
             if (sender === 'vendedor') {
               await this.messageRepo.update(
@@ -172,13 +173,20 @@ export class MlSyncService {
 
             const exists = await this.messageRepo.findOne({ where: { externalId, tenantId: account.tenantId } });
             if (exists) {
-              if (!exists.buyerName || !exists.itemTitle) {
-                await this.messageRepo.update(exists.id, { buyerId, buyerName, itemTitle });
+              const updates: Record<string, unknown> = {};
+              if (!exists.buyerName) updates.buyerName = buyerName;
+              if (!exists.itemTitle) updates.itemTitle = itemTitle;
+              // Corrige mensagens salvas com conteúdo vazio por bug antigo de parsing
+              if (!exists.content && content && sender === 'cliente') {
+                updates.content = content;
+                updates.status = 'pending';
+              }
+              if (Object.keys(updates).length) {
+                await this.messageRepo.update(exists.id, updates);
               }
               continue;
             }
 
-            const content = (typeof msg.text === 'string' ? msg.text : msg.text?.plain ?? '').trim();
             const isAutoNotification = sender === 'cliente' && content === '';
             const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
             slaDeadline.setHours(slaDeadline.getHours() + 48);
