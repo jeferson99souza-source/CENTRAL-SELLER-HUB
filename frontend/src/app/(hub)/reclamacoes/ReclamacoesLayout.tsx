@@ -213,38 +213,45 @@ export default function ReclamacoesLayout({ complaints }: Props) {
   const urgentCount = complaints.filter((c) => !c.isReturn && new Date(c.slaDeadline) < new Date() && c.status !== 'closed').length
 
   return (
-    <div className="space-y-4">
-      {/* Tabs */}
-      <div className="flex gap-2">
+    <div className="flex gap-4 min-h-[70vh]">
+      {/* Sidebar vertical esquerda */}
+      <div className="w-44 shrink-0 flex flex-col gap-2 pt-1">
         <button
           onClick={() => setTab('reclamacoes')}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-            tab === 'reclamacoes' ? 'bg-[#DE7100] text-white' : 'bg-white text-gray-600 border border-gray-200'
+          className={`flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors text-left ${
+            tab === 'reclamacoes'
+              ? 'bg-[#DE7100] text-white shadow-md shadow-orange-200'
+              : 'bg-white text-gray-600 border border-gray-100 hover:border-orange-200'
           }`}
         >
-          <AlertCircle className="w-4 h-4" />
-          Reclamações
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">Reclamações</span>
           {urgentCount > 0 && (
-            <span className="bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ml-0.5">
+            <span className={`text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center ${tab === 'reclamacoes' ? 'bg-white text-red-500' : 'bg-red-500 text-white'}`}>
               {urgentCount}
             </span>
           )}
         </button>
         <button
           onClick={() => setTab('devolucoes')}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-            tab === 'devolucoes' ? 'bg-[#DE7100] text-white' : 'bg-white text-gray-600 border border-gray-200'
+          className={`flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors text-left ${
+            tab === 'devolucoes'
+              ? 'bg-[#DE7100] text-white shadow-md shadow-orange-200'
+              : 'bg-white text-gray-600 border border-gray-100 hover:border-orange-200'
           }`}
         >
-          <RotateCcw className="w-4 h-4" />
-          Devoluções
+          <RotateCcw className="w-4 h-4 shrink-0" />
+          <span className="flex-1">Devoluções</span>
           {returns.length > 0 && (
-            <span className={`text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ml-0.5 ${tab === 'devolucoes' ? 'bg-white text-orange-600' : 'bg-orange-500 text-white'}`}>
+            <span className={`text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center ${tab === 'devolucoes' ? 'bg-white text-orange-600' : 'bg-orange-500 text-white'}`}>
               {returns.length}
             </span>
           )}
         </button>
       </div>
+
+      {/* Conteúdo */}
+      <div className="flex-1 min-w-0">
 
       {/* Reclamações regulares */}
       {tab === 'reclamacoes' && (
@@ -308,6 +315,8 @@ export default function ReclamacoesLayout({ complaints }: Props) {
           ) : returns.map((c) => <ReturnCard key={c.id} complaint={c} />)}
         </div>
       )}
+
+      </div> {/* fim conteúdo */}
     </div>
   )
 }
