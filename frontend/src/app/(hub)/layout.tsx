@@ -1,9 +1,11 @@
 import Link from 'next/link'
-import { LayoutGrid, AlertCircle, MessageSquare, User } from 'lucide-react'
+import { LayoutGrid, AlertCircle, MessageSquare, User, Package, HelpCircle } from 'lucide-react'
 import { logout } from '@/app/actions'
 
 const navItems = [
   { href: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
+  { href: '/pedidos', icon: Package, label: 'Pedidos' },
+  { href: '/perguntas', icon: HelpCircle, label: 'Perguntas' },
   { href: '/reclamacoes', icon: AlertCircle, label: 'Reclamações' },
   { href: '/mensagens', icon: MessageSquare, label: 'Mensagens' },
 ]

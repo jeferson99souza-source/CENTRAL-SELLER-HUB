@@ -72,3 +72,31 @@ export type MarketplaceAccount = {
   isActive: boolean
   lastSyncAt: string | null
 }
+
+export type Order = {
+  id: string
+  externalId: string
+  marketplace: string
+  buyerName: string
+  itemTitle: string | null
+  itemQuantity: number | null
+  totalAmount: number | null
+  currency: string
+  status: string
+  shippingStatus: string | null
+  orderDate: string
+  createdAt: string
+}
+
+export type Question = {
+  id: string
+  externalId: string
+  marketplace: string
+  itemTitle: string | null
+  buyerName: string | null
+  text: string
+  answer: string | null
+  status: 'unanswered' | 'answered' | 'closed_unanswered'
+  slaDeadline: string
+  createdAt: string
+}
