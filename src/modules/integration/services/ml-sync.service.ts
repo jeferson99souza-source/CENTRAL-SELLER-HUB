@@ -267,6 +267,19 @@ export class MlSyncService {
       const questions = data?.questions ?? [];
       this.logger.log(`Perguntas: ${questions.length} para seller=${account.sellerId}`);
 
+      // Marca como 'answered' qualquer pergunta no banco que não está mais na lista do ML
+      const mlIds = new Set(questions.map((q) => String(q.id)));
+      const dbPending = await this.questionRepo.find({
+        where: { tenantId: account.tenantId, status: 'unanswered' },
+      });
+      const toClose = dbPending.filter((q) => !mlIds.has(q.externalId));
+      if (toClose.length) {
+        await Promise.all(
+          toClose.map((q) => this.questionRepo.update(q.id, { status: 'answered' })),
+        );
+        this.logger.log(`Perguntas marcadas como respondidas (já não pendentes no ML): ${toClose.length}`);
+      }
+
       for (const q of questions) {
         const externalId = String(q.id);
         const exists = await this.questionRepo.findOne({ where: { externalId, tenantId: account.tenantId } });
