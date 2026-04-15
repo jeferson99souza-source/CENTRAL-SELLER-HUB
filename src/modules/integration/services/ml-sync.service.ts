@@ -113,6 +113,7 @@ export class MlSyncService {
           const messagesData = (await this.mlService.getMessages(
             accessToken,
             String(packId),
+            account.sellerId,
           )) as { messages: MlMessage[] };
 
           const mlMessages = messagesData?.messages ?? [];

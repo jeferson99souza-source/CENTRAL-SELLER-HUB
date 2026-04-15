@@ -156,9 +156,9 @@ export class MercadoLivreService {
 
   // ─── API Calls ──────────────────────────────────────────────────────────────
 
-  async getMessages(accessToken: string, packId: string): Promise<unknown> {
+  async getMessages(accessToken: string, packId: string, sellerId: string): Promise<unknown> {
     this.logger.log(`Buscando mensagens do pack ${packId}`);
-    return this.mlGet(`/messages/packs/${packId}?tag=post_sale`, accessToken);
+    return this.mlGet(`/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`, accessToken);
   }
 
   async getUnansweredQuestions(
@@ -175,7 +175,7 @@ export class MercadoLivreService {
   async getClaims(accessToken: string, sellerId: string): Promise<unknown> {
     this.logger.log(`Buscando reclamações seller=${sellerId}`);
     return this.mlGet(
-      `/post-purchase/v1/claims/search?seller_id=${sellerId}`,
+      `/post-purchase/v1/claims/search?player_user_id=${sellerId}&player_role=respondent`,
       accessToken,
     );
   }
