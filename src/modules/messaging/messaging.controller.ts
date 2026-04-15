@@ -1,11 +1,13 @@
 import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/tenant.decorator';
 import { MessagingService } from './messaging.service';
 
 @ApiTags('messaging')
-@UseGuards(TenantGuard)
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('messaging')
 export class MessagingController {
   constructor(private readonly messagingService: MessagingService) {}

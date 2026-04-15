@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Query,
   UseGuards,
   BadRequestException,
@@ -15,12 +16,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/tenant.decorator';
 import { MercadoLivreService } from './services/mercadolivre.service';
+import { MlSyncService } from './services/ml-sync.service';
 import { ConnectAccountDto } from './dto/connect-account.dto';
 
 @ApiTags('integration')
 @Controller('integration')
 export class IntegrationController {
-  constructor(private readonly mlService: MercadoLivreService) {}
+  constructor(
+    private readonly mlService: MercadoLivreService,
+    private readonly mlSyncService: MlSyncService,
+  ) {}
 
   // ─── Mercado Livre ──────────────────────────────────────────────────────────
 
@@ -72,5 +77,17 @@ export class IntegrationController {
         sellerName: account.sellerName,
       },
     };
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiOperation({
+    summary: 'Sincronizar mensagens e reclamações do Mercado Livre',
+    description: 'Busca mensagens e reclamações da API do ML e salva no banco.',
+  })
+  @Post('mercadolivre/sync')
+  async syncMercadoLivre(@TenantId() tenantId: string) {
+    const result = await this.mlSyncService.syncForTenant(tenantId);
+    return { data: result };
   }
 }
