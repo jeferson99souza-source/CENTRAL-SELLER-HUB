@@ -119,6 +119,9 @@ export class MlSyncService {
 
           const mlMessages = messagesData?.messages ?? [];
 
+          // Ordenar cronologicamente para garantir que a resposta do vendedor atualize as mensagens do cliente
+          mlMessages.sort((a, b) => new Date(a.message_date.received).getTime() - new Date(b.message_date.received).getTime());
+
           for (const msg of mlMessages) {
             const externalId = String(msg.id);
             const exists = await this.messageRepo.findOne({
@@ -128,6 +131,14 @@ export class MlSyncService {
             const sellerId = Number(account.sellerId);
             const sender =
               msg.from?.user_id === sellerId ? 'vendedor' : 'cliente';
+
+            // Se for mensagem do vendedor, marca todas as anteriores pendentes desse pack como respondidas
+            if (sender === 'vendedor') {
+               await this.messageRepo.update(
+                 { packId: String(packId), tenantId: account.tenantId, sender: 'cliente', status: 'pending' },
+                 { status: 'answered' }
+               );
+            }
 
             const buyerId = String(
               msg.from?.user_id === sellerId ? msg.to?.user_id : msg.from?.user_id,
@@ -158,7 +169,7 @@ export class MlSyncService {
               itemTitle,
               sender,
               content: msg.text?.plain ?? '',
-              status: 'pending',
+              status: sender === 'vendedor' ? 'answered' : 'pending',
               slaDeadline,
             });
             synced++;

@@ -210,20 +210,19 @@ export class MercadoLivreService {
     );
   }
 
-  async getOrders(accessToken: string, sellerId: string, daysBack = 30): Promise<unknown> {
+  async getOrders(accessToken: string, sellerId: string, daysBack = 90): Promise<unknown> {
     const now = new Date();
     const from = new Date();
     from.setDate(from.getDate() - daysBack);
     
-    // O Mercado Livre usa o formato ISO 8601 (ex: 2015-07-01T00:00:00.000-00:00 ou Z)
-    // Obrigatório usar 'order.date_created.from' e 'order.date_created.to'
+    // Usamos date_last_updated para trazer pedidos antigos que tiveram mensagens/alterações recentes
     const dateFrom = from.toISOString().split('.')[0] + '.000-00:00';
     const dateTo = now.toISOString().split('.')[0] + '.000-00:00';
 
     this.logger.log(`Buscando pedidos seller=${sellerId} de ${dateFrom} ate ${dateTo}`);
     
     return this.mlGet(
-      `/orders/search?seller=${sellerId}&sort=date_desc&order.date_created.from=${encodeURIComponent(dateFrom)}&order.date_created.to=${encodeURIComponent(dateTo)}`,
+      `/orders/search?seller=${sellerId}&sort=date_desc&order.date_last_updated.from=${encodeURIComponent(dateFrom)}&order.date_last_updated.to=${encodeURIComponent(dateTo)}`,
       accessToken,
     );
   }
