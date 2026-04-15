@@ -100,15 +100,34 @@ export class MlSyncService {
     let synced = 0;
 
     try {
-      const ordersData = (await this.mlService.getOrders(
-        accessToken,
-        account.sellerId,
-      )) as { results: MlOrder[] };
+      let offset = 0;
+      let hasMore = true;
+      const allOrders: MlOrder[] = [];
+      let totalApi = '?';
 
-      const orders = ordersData?.results ?? [];
-      this.logger.log(`Pedidos encontrados para seller=${account.sellerId}: ${orders.length} (total API: ${(ordersData as any)?.paging?.total ?? '?'})`);
+      // Limita a buscar 4 páginas de 50 pedidos (últimos 200 pedidos atualizados) para cobrir muito mais requisições
+      while (hasMore && offset < 200) {
+        const ordersData = (await this.mlService.getOrders(
+          accessToken,
+          account.sellerId,
+          90, // daysBack
+          offset
+        )) as { results: MlOrder[], paging: any };
 
-      for (const order of orders) {
+        const pageOrders = ordersData?.results ?? [];
+        allOrders.push(...pageOrders);
+        totalApi = ordersData?.paging?.total ?? '?';
+
+        if (pageOrders.length < 50 || !ordersData?.paging?.total || offset + pageOrders.length >= ordersData.paging.total) {
+          hasMore = false;
+        } else {
+          offset += 50;
+        }
+      }
+
+      this.logger.log(`Pedidos carregados para seller=${account.sellerId}: ${allOrders.length} (total API: ${totalApi})`);
+
+      for (const order of allOrders) {
         try {
           const packId = order.pack_id ?? order.id;
           const messagesData = (await this.mlService.getMessages(
@@ -155,6 +174,10 @@ export class MlSyncService {
               continue;
             }
 
+            const content = msg.text?.plain?.trim() ?? '';
+            // Se for uma notificação de sistema vazia do cliente, salvamos como respondida para não poluir a tela de Pendentes
+            const isAutoNotification = sender === 'cliente' && content === '';
+
             const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
             slaDeadline.setHours(slaDeadline.getHours() + 48);
 
@@ -169,7 +192,7 @@ export class MlSyncService {
               itemTitle,
               sender,
               content: msg.text?.plain ?? '',
-              status: sender === 'vendedor' ? 'answered' : 'pending',
+              status: (sender === 'vendedor' || isAutoNotification) ? 'answered' : 'pending',
               slaDeadline,
             });
             synced++;

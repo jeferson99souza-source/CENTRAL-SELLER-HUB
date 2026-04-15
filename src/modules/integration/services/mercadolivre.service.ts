@@ -210,7 +210,7 @@ export class MercadoLivreService {
     );
   }
 
-  async getOrders(accessToken: string, sellerId: string, daysBack = 90): Promise<unknown> {
+  async getOrders(accessToken: string, sellerId: string, daysBack = 90, offset = 0): Promise<unknown> {
     const now = new Date();
     const from = new Date();
     from.setDate(from.getDate() - daysBack);
@@ -219,10 +219,10 @@ export class MercadoLivreService {
     const dateFrom = from.toISOString().split('.')[0] + '.000-00:00';
     const dateTo = now.toISOString().split('.')[0] + '.000-00:00';
 
-    this.logger.log(`Buscando pedidos seller=${sellerId} de ${dateFrom} ate ${dateTo}`);
+    this.logger.log(`Buscando pedidos seller=${sellerId} offset=${offset} limit=50 de ${dateFrom} ate ${dateTo}`);
     
     return this.mlGet(
-      `/orders/search?seller=${sellerId}&sort=date_desc&order.date_last_updated.from=${encodeURIComponent(dateFrom)}&order.date_last_updated.to=${encodeURIComponent(dateTo)}`,
+      `/orders/search?seller=${sellerId}&sort=date_desc&offset=${offset}&limit=50&order.date_last_updated.from=${encodeURIComponent(dateFrom)}&order.date_last_updated.to=${encodeURIComponent(dateTo)}`,
       accessToken,
     );
   }
