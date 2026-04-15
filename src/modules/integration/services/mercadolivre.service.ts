@@ -184,7 +184,7 @@ export class MercadoLivreService {
 
     const payload = {
       from: { user_id: sellerNum },
-      to: { user_id: buyerNum },
+      to: [{ user_id: buyerNum }],
       text: { plain: text },
     };
 
