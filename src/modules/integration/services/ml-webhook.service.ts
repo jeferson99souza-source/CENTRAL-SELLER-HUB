@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MarketplaceAccount } from '../../accounts/entities/marketplace-account.entity';
 import { Message } from '../../messaging/entities/message.entity';
+import { Question } from '../../questions/entities/question.entity';
+import { Order } from '../../orders/entities/order.entity';
 import { MercadoLivreService } from './mercadolivre.service';
 import { TokenEncryptionService } from '../../../common/crypto/token-encryption.service';
 
@@ -16,6 +18,10 @@ export class MlWebhookService {
     private readonly accountRepo: Repository<MarketplaceAccount>,
     @InjectRepository(Message)
     private readonly messageRepo: Repository<Message>,
+    @InjectRepository(Question)
+    private readonly questionRepo: Repository<Question>,
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
     private readonly mlService: MercadoLivreService,
     private readonly encryption: TokenEncryptionService,
   ) {}
@@ -44,9 +50,9 @@ export class MlWebhookService {
     if (topic === 'messages') {
       await this.handleMessage(resource, account, accessToken);
     } else if (topic === 'questions') {
-      this.logger.log(`Webhook de pergunta recebido: ${resource} (a implementar)`);
+      await this.handleQuestion(resource, account, accessToken);
     } else if (topic === 'orders_v2') {
-      this.logger.log(`Webhook de pedido recebido: ${resource}`);
+      await this.handleOrderV2(resource, account, accessToken);
     } else {
       this.logger.debug(`Tópico ignorado: ${topic}`);
     }
@@ -124,6 +130,103 @@ export class MlWebhookService {
     });
 
     this.logger.log(`Mensagem salva via webhook: externalId=${externalId} sender=${sender} buyer=${buyerName}`);
+  }
+
+  private async handleQuestion(resource: string, account: MarketplaceAccount, accessToken: string) {
+    this.logger.log(`Processando webhook de pergunta: ${resource}`);
+    
+    const q = await this.mlFetch(resource, accessToken);
+    if (!q) return;
+
+    const externalId = String(q.id);
+    const exists = await this.questionRepo.findOne({ where: { externalId, tenantId: account.tenantId } });
+    if (exists) {
+      if (q.status === 'ANSWERED' && exists.status === 'unanswered') {
+         await this.questionRepo.update(exists.id, {
+           status: 'answered',
+           answer: q.answer?.text ?? exists.answer
+         });
+         this.logger.log(`Pergunta (Webhook) atualizada para respondida: ${externalId}`);
+      }
+      return;
+    }
+
+    let itemTitle: string | undefined;
+    let buyerName: string | undefined;
+    
+    if (q.item_id) {
+       const item = await this.mlFetch(`/items/${q.item_id}`, accessToken);
+       itemTitle = item?.title ?? undefined;
+    }
+    
+    if (q.from?.id) {
+       const user = await this.mlFetch(`/users/${q.from.id}`, accessToken);
+       buyerName = user?.nickname ?? undefined;
+    }
+
+    const slaDeadline = new Date(q.date_created);
+    slaDeadline.setHours(slaDeadline.getHours() + 12);
+
+    await this.questionRepo.save({
+      tenantId: account.tenantId,
+      externalId,
+      marketplace: 'mercadolivre',
+      itemId: q.item_id,
+      itemTitle,
+      buyerId: String(q.from?.id ?? ''),
+      buyerName,
+      text: q.text,
+      answer: q.answer?.text ?? undefined,
+      status: q.status === 'ANSWERED' ? 'answered' : 'unanswered',
+      slaDeadline,
+    });
+    
+    this.logger.log(`Pergunta salva via webhook: ${externalId}`);
+  }
+
+  private async handleOrderV2(resource: string, account: MarketplaceAccount, accessToken: string) {
+    this.logger.log(`Processando webhook de pedido: ${resource}`);
+    
+    const order = await this.mlFetch(resource, accessToken);
+    if (!order) return;
+
+    const externalId = String(order.id);
+    const exists = await this.orderRepo.findOne({ where: { externalId, tenantId: account.tenantId } });
+    
+    const buyerFullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
+    const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';
+    const item = order.order_items?.[0];
+
+    const orderData = {
+      tenantId: account.tenantId,
+      externalId,
+      marketplace: 'mercadolivre',
+      packId: order.pack_id ? String(order.pack_id) : undefined,
+      buyerId: String(order.buyer?.id ?? ''),
+      buyerName,
+      buyerEmail: order.buyer?.email ?? undefined,
+      itemId: item?.item?.id ?? undefined,
+      itemTitle: item?.item?.title ?? undefined,
+      itemQuantity: item?.quantity ?? undefined,
+      totalAmount: order.total_amount ?? undefined,
+      currency: order.currency_id ?? 'BRL',
+      status: order.status ?? 'confirmed',
+      shippingStatus: order.shipping?.status ?? undefined,
+      trackingNumber: order.shipping?.tracking_number ?? undefined,
+      orderDate: new Date(order.date_created || Date.now()),
+    };
+
+    if (exists) {
+      // Atualiza os dados de status, etc se recwbeu um pedido existente
+      await this.orderRepo.update(exists.id, orderData);
+      this.logger.log(`Pedido (Webhook) atualizado: ${externalId} com status ${order.status}`);
+      return;
+    }
+
+    await this.orderRepo.save(orderData);
+    this.logger.log(`Pedido salvo via webhook: ${externalId}`);
+    
+    // Future: Auto-Responder goes here for `order.status === 'paid'`
   }
 
   private async mlFetch(resource: string, accessToken: string): Promise<any> {
