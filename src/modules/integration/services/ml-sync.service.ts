@@ -108,7 +108,7 @@ export class MlSyncService {
       const orders = ordersData?.results ?? [];
       this.logger.log(`Pedidos encontrados para seller=${account.sellerId}: ${orders.length}`);
 
-      for (const order of orders.slice(0, 20)) {
+      for (const order of orders) {
         try {
           const packId = order.pack_id ?? order.id;
           const messagesData = (await this.mlService.getMessages(
