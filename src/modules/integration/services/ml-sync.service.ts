@@ -124,14 +124,10 @@ export class MlSyncService {
             const exists = await this.messageRepo.findOne({
               where: { externalId, tenantId: account.tenantId },
             });
-            if (exists) continue;
 
             const sellerId = Number(account.sellerId);
             const sender =
               msg.from?.user_id === sellerId ? 'vendedor' : 'cliente';
-
-            const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
-            slaDeadline.setHours(slaDeadline.getHours() + 48);
 
             const buyerId = String(
               msg.from?.user_id === sellerId ? msg.to?.user_id : msg.from?.user_id,
@@ -139,6 +135,17 @@ export class MlSyncService {
             const buyerFullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
             const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';
             const itemTitle = order.order_items?.[0]?.item?.title ?? undefined;
+
+            if (exists) {
+              // Atualiza campos que podem ter ficado nulos em syncs anteriores
+              if (!exists.buyerName || !exists.itemTitle) {
+                await this.messageRepo.update(exists.id, { buyerId, buyerName, itemTitle });
+              }
+              continue;
+            }
+
+            const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
+            slaDeadline.setHours(slaDeadline.getHours() + 48);
 
             await this.messageRepo.save({
               tenantId: account.tenantId,
