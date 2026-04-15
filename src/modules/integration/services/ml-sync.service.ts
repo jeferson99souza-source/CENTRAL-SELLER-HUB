@@ -220,10 +220,57 @@ export class MlSyncService {
       const data = (await this.mlService.getClaims(accessToken, account.sellerId)) as { data: MlClaim[] };
       const claims = data?.data ?? [];
 
+      // Helpers de reason compartilhados
+      const RETURN_REASONS = ['PDD', 'ITEM_NOT_AS_DESCRIBED', 'WANTS_RETURN', 'PRODUCT_DAMAGED'];
+      const REASON_MAP: Record<string, string> = {
+        PNR: 'Produto não recebido',
+        PDD: 'Produto diferente ou danificado',
+        WANTS_RETURN: 'Cliente solicita devolução',
+        ITEM_NOT_AS_DESCRIBED: 'Item diferente do anúncio',
+        PRODUCT_DAMAGED: 'Produto danificado',
+      };
+      const resolveReason = (reasonId: string) => {
+        const prefix = reasonId.split(/\d/)[0];
+        return REASON_MAP[prefix] ?? REASON_MAP[reasonId] ?? reasonId ?? 'Reclamação do Mercado Livre';
+      };
+
       for (const claim of claims) {
         const externalId = String(claim.id);
         const exists = await this.complaintRepo.findOne({ where: { externalId, tenantId: account.tenantId } });
-        if (exists) continue;
+
+        // Detecta se é uma devolução pelos reason_id do ML
+        const isReturn = RETURN_REASONS.some((r) => (claim.reason_id ?? '').startsWith(r));
+        const reason = resolveReason(claim.reason_id ?? '');
+
+        // Atualiza campos novos em registros já existentes (isReturn, reason legível)
+        if (exists) {
+          const needsUpdate = !exists.isReturn && isReturn;
+          const reasonIsRawCode = exists.reason === claim.reason_id && reason !== claim.reason_id;
+          if (needsUpdate || reasonIsRawCode || !exists.buyerName) {
+            const updates: Record<string, unknown> = {};
+            if (needsUpdate) { updates.isReturn = true; updates.stage = 'opened'; }
+            if (reasonIsRawCode) updates.reason = reason;
+            if (!exists.buyerName) {
+              const claimOrderId = claim.order_id ?? claim.resource_id;
+              if (claimOrderId) {
+                try {
+                  const order = (await this.mlService.getOrderById(accessToken, String(claimOrderId))) as any;
+                  if (order) {
+                    const fullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
+                    updates.buyerName = order.buyer?.nickname || fullName || undefined;
+                    updates.itemTitle = order.order_items?.[0]?.item?.title ?? undefined;
+                    updates.orderId = String(claimOrderId);
+                  }
+                } catch { /* segue */ }
+              }
+            }
+            if (Object.keys(updates).length) {
+              await this.complaintRepo.update(exists.id, updates);
+              this.logger.log(`Reclamação ${externalId} atualizada: ${JSON.stringify(Object.keys(updates))}`);
+            }
+          }
+          continue;
+        }
 
         const slaDeadline = new Date(claim.date_created);
         slaDeadline.setHours(slaDeadline.getHours() + 24);
@@ -243,21 +290,6 @@ export class MlSyncService {
             }
           } catch { /* segue sem dados do pedido */ }
         }
-
-        // Detecta se é uma devolução pelos reason_id do ML
-        const RETURN_REASONS = ['PDD', 'ITEM_NOT_AS_DESCRIBED', 'WANTS_RETURN', 'PRODUCT_DAMAGED'];
-        const isReturn = RETURN_REASONS.some((r) => (claim.reason_id ?? '').startsWith(r));
-
-        // Mapeia reason_id para texto legível
-        const REASON_MAP: Record<string, string> = {
-          PNR: 'Produto não recebido',
-          PDD: 'Produto diferente ou danificado',
-          WANTS_RETURN: 'Cliente solicita devolução',
-          ITEM_NOT_AS_DESCRIBED: 'Item diferente do anúncio',
-          PRODUCT_DAMAGED: 'Produto danificado',
-        };
-        const reasonPrefix = (claim.reason_id ?? '').split(/\d/)[0];
-        const reason = REASON_MAP[reasonPrefix] ?? REASON_MAP[claim.reason_id ?? ''] ?? claim.reason_id ?? 'Reclamação do Mercado Livre';
 
         await this.complaintRepo.save({
           tenantId: account.tenantId, externalId, marketplace: 'mercadolivre',
