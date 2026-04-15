@@ -4,7 +4,8 @@ import {
   Post,
   Query,
   UseGuards,
-  BadRequestException,
+  Redirect,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -12,6 +13,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -26,13 +28,19 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
 @ApiTags('integration')
 @Controller('integration')
 export class IntegrationController {
+  private readonly logger = new Logger(IntegrationController.name);
+  private readonly frontendUrl: string;
+
   constructor(
     private readonly mlService: MercadoLivreService,
     private readonly mlSyncService: MlSyncService,
     private readonly encryption: TokenEncryptionService,
+    private readonly config: ConfigService,
     @InjectRepository(MarketplaceAccount)
     private readonly accountRepo: Repository<MarketplaceAccount>,
-  ) {}
+  ) {
+    this.frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
+  }
 
   // ─── Mercado Livre ──────────────────────────────────────────────────────────
 
@@ -56,8 +64,9 @@ export class IntegrationController {
   @ApiOperation({
     summary: 'Callback OAuth do Mercado Livre',
     description:
-      'Recebe code + state do ML, valida PKCE via Redis, troca por tokens e salva criptografado.',
+      'Recebe code + state do ML, valida PKCE via Redis, troca por tokens, salva criptografado e redireciona ao frontend.',
   })
+  @Redirect('', 302)
   @Get('mercadolivre/callback')
   async callbackMercadoLivre(
     @Query('code') code: string,
@@ -65,25 +74,20 @@ export class IntegrationController {
     @Query('error') error?: string,
     @Query('error_description') errorDescription?: string,
   ) {
-    if (error) {
-      throw new BadRequestException(
-        errorDescription ?? `Erro OAuth do Mercado Livre: ${error}`,
-      );
+    if (error || !code || !state) {
+      const msg = errorDescription ?? error ?? 'Parâmetros inválidos no callback';
+      this.logger.error(`Callback ML com erro: ${msg}`);
+      return { url: `${this.frontendUrl}/contas?mlError=${encodeURIComponent(msg)}` };
     }
-    if (!code || !state) {
-      throw new BadRequestException(
-        'Parâmetros code e state são obrigatórios',
-      );
+    try {
+      const account = await this.mlService.handleCallback(code, state);
+      this.logger.log(`Conta ML conectada: seller=${account.sellerId} name=${account.sellerName}`);
+      return { url: `${this.frontendUrl}/contas?mlConnected=${encodeURIComponent(account.sellerName)}` };
+    } catch (err) {
+      const msg = (err as Error).message ?? 'Falha ao conectar conta ML';
+      this.logger.error(`Erro no callback ML: ${msg}`);
+      return { url: `${this.frontendUrl}/contas?mlError=${encodeURIComponent(msg)}` };
     }
-    const account = await this.mlService.handleCallback(code, state);
-    return {
-      data: {
-        message: 'Conta Mercado Livre conectada com sucesso',
-        accountId: account.id,
-        sellerId: account.sellerId,
-        sellerName: account.sellerName,
-      },
-    };
   }
 
   @ApiBearerAuth()

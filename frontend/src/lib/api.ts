@@ -81,6 +81,17 @@ export type MarketplaceAccount = {
   lastSyncAt: string | null
 }
 
+export type Company = {
+  id: string
+  name: string
+  cnpj: string
+  email: string | null
+  phone: string | null
+  isActive: boolean
+  createdAt: string
+  marketplaceAccounts: MarketplaceAccount[]
+}
+
 export type Order = {
   id: string
   externalId: string

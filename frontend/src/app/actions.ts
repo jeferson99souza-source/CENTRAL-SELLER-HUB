@@ -146,6 +146,55 @@ export async function answerQuestion(questionId: string, text: string) {
   return { success: true }
 }
 
+export async function getCompanies() {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const res = await fetch(`${API_URL}/accounts/companies`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) return { error: `Erro ${res.status}` }
+  const data = await res.json()
+  return { companies: Array.isArray(data) ? data : (data?.data ?? []) }
+}
+
+export async function createCompany(formData: FormData) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const body = {
+    name: formData.get('name') as string,
+    cnpj: formData.get('cnpj') as string,
+    email: (formData.get('email') as string) || undefined,
+    phone: (formData.get('phone') as string) || undefined,
+  }
+  const res = await fetch(`${API_URL}/accounts/companies`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    const msg = err?.message ?? err?.error?.message ?? `Erro ${res.status}`
+    return { error: Array.isArray(msg) ? msg.join(', ') : String(msg) }
+  }
+  return { success: true }
+}
+
+export async function getMLConnectUrl(companyId: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  const res = await fetch(`${API_URL}/integration/mercadolivre/connect?companyId=${companyId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) return { error: 'Falha ao obter URL de autorização' }
+  const body = await res.json()
+  return { authUrl: body?.data?.authUrl as string }
+}
+
 export async function diagnoseML() {
   const store = await cookies()
   const token = store.get('token')?.value

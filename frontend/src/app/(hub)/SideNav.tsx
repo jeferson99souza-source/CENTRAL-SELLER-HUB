@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, AlertCircle, MessageSquare, Package, HelpCircle } from 'lucide-react'
+import { LayoutGrid, AlertCircle, MessageSquare, Package, HelpCircle, Building2 } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
@@ -10,6 +10,7 @@ const navItems = [
   { href: '/perguntas', icon: HelpCircle, label: 'Perguntas' },
   { href: '/reclamacoes', icon: AlertCircle, label: 'Reclamações' },
   { href: '/mensagens', icon: MessageSquare, label: 'Mensagens' },
+  { href: '/contas', icon: Building2, label: 'Contas' },
 ]
 
 export default function SideNav() {
