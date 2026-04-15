@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RedisModule } from './common/redis/redis.module';
@@ -71,6 +72,9 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
         limit: 60,
       },
     ]),
+
+    // Cron jobs
+    ScheduleModule.forRoot(),
 
     // Redis global
     RedisModule,
