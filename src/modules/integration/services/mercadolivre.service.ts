@@ -182,10 +182,11 @@ export class MercadoLivreService {
     if (isNaN(sellerNum)) throw new Error(`sellerId inválido para envio: "${sellerId}"`);
     if (isNaN(buyerNum) || buyerNum <= 0) throw new Error(`buyerId inválido para envio: "${buyerId}"`);
 
+    // ML infere o remetente pelo token OAuth — 'from' explícito pode causar conflito
     const payload = {
-      from: { user_id: sellerNum },
       to: [{ user_id: buyerNum }],
       text: { plain: text },
+      attachments: [],
     };
 
     const url = `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`;

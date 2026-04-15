@@ -6,6 +6,7 @@ import {
   UseGuards,
   Redirect,
   Logger,
+  Body,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -100,6 +101,43 @@ export class IntegrationController {
   async syncMercadoLivre(@TenantId() tenantId: string) {
     const result = await this.mlSyncService.syncForTenant(tenantId);
     return { data: result };
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiOperation({
+    summary: 'Testar envio de mensagem ML (diagnóstico)',
+    description: 'Envia uma mensagem de teste para um pack específico. Use para diagnosticar permissões.',
+  })
+  @Post('mercadolivre/test-message')
+  async testSendMessage(
+    @TenantId() tenantId: string,
+    @Body() body: { packId: string; buyerId: string; text?: string },
+  ) {
+    const accounts = await this.accountRepo.find({
+      where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+    });
+    if (!accounts.length) return { error: 'Nenhuma conta ML ativa' };
+
+    const account = accounts[0];
+    const isExpired = !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
+    const accessToken = isExpired
+      ? await this.mlService.refreshAccountToken(account)
+      : this.encryption.decrypt(account.accessTokenEnc);
+
+    this.logger.log(`[test-message] packId=${body.packId} sellerId=${account.sellerId} buyerId=${body.buyerId}`);
+    try {
+      const result = await this.mlService.sendMessage(
+        accessToken,
+        body.packId,
+        account.sellerId,
+        body.buyerId,
+        body.text ?? 'Olá, teste de envio.',
+      );
+      return { success: true, data: result };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
   }
 
   @ApiBearerAuth()
