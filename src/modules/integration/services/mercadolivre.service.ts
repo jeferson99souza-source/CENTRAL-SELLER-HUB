@@ -179,21 +179,17 @@ export class MercadoLivreService {
     const buyerNum = parseInt(buyerId, 10);
 
     if (isNaN(sellerNum)) throw new Error(`sellerId inválido para envio: "${sellerId}"`);
-    if (isNaN(buyerNum)) throw new Error(`buyerId inválido para envio: "${buyerId}"`);
+    if (isNaN(buyerNum) || buyerNum <= 0) throw new Error(`buyerId inválido para envio: "${buyerId}"`);
 
-    // ML infere o "from" pelo token OAuth — enviar explicitamente pode causar
-    // conflito se o sellerId no DB diferir minimamente do user_id do token
+    // ML: o "from" é inferido pelo token OAuth — não incluir explicitamente
+    // evita o erro "Unexpected exception parsing json string" causado por mismatch
     const payload = {
-      from: { user_id: sellerNum },
       to: { user_id: buyerNum },
       text: { plain: text },
-      attachments: [],
     };
 
     const bodyStr = JSON.stringify(payload);
-    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerNum} buyer=${buyerNum}`);
-    this.logger.log(`Payload: ${bodyStr}`);
-    this.logger.log(`URL: ${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`);
+    this.logger.log(`Enviando mensagem (sem from) pack=${packId} seller=${sellerNum} buyer=${buyerNum} payload=${bodyStr}`);
 
     const response = await fetch(
       `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`,
