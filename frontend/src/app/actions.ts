@@ -41,3 +41,21 @@ export async function logout() {
   store.delete('token')
   redirect('/login')
 }
+
+export async function syncML() {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  
+  if (!token) return { error: 'Não autorizado' }
+
+  const res = await fetch(`${API_URL}/integration/mercadolivre/sync`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` }
+  })
+
+  if (!res.ok) {
+    return { error: 'Falha na sincronização' }
+  }
+
+  return { success: true }
+}

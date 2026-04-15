@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { apiFetch, type KPIs } from '@/lib/api'
 import { AlertCircle, MessageSquare, ShoppingBag, Clock } from 'lucide-react'
+import SyncButton from './SyncButton'
 
 async function KPICards() {
   const kpis = await apiFetch<KPIs>('/dashboard/kpis?period=30d')
@@ -83,9 +84,12 @@ function KPISkeleton() {
 export default function DashboardPage() {
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-sm text-[#5B657A] mt-1">Resumo dos últimos 30 dias</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+          <p className="text-sm text-[#5B657A] mt-1">Resumo dos últimos 30 dias</p>
+        </div>
+        <SyncButton />
       </div>
       <Suspense fallback={<KPISkeleton />}>
         <KPICards />
