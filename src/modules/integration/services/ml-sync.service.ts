@@ -28,6 +28,8 @@ interface MlClaim {
   reason_id: string;
   status: string;
   date_created: string;
+  resource_id?: number; // order_id associado à reclamação
+  order_id?: number;
 }
 
 @Injectable()
@@ -234,6 +236,25 @@ export class MlSyncService {
         const slaDeadline = new Date(claim.date_created);
         slaDeadline.setHours(slaDeadline.getHours() + 24);
 
+        // Busca dados do pedido para obter nome do comprador e produto
+        let buyerName: string | undefined;
+        let itemTitle: string | undefined;
+        let orderId: string | undefined;
+        const claimOrderId = claim.order_id ?? claim.resource_id;
+        if (claimOrderId) {
+          try {
+            const order = await this.mlService.getOrderById(accessToken, String(claimOrderId)) as any;
+            if (order) {
+              orderId = String(claimOrderId);
+              const fullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
+              buyerName = order.buyer?.nickname || fullName || undefined;
+              itemTitle = order.order_items?.[0]?.item?.title ?? undefined;
+            }
+          } catch {
+            // segue sem os dados do pedido
+          }
+        }
+
         await this.complaintRepo.save({
           tenantId: account.tenantId,
           externalId,
@@ -242,6 +263,9 @@ export class MlSyncService {
           status: claim.status === 'closed' ? 'closed' : 'open',
           priority: 'urgent',
           slaDeadline,
+          orderId,
+          buyerName,
+          itemTitle,
         });
         synced++;
       }

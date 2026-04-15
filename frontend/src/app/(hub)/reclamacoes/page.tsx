@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { apiFetch, type Complaint } from '@/lib/api'
-import { AlertCircle, Clock } from 'lucide-react'
+import { AlertCircle, Clock, User, Package } from 'lucide-react'
 
 const STATUS_LABEL: Record<string, string> = {
   open: 'Aberta',
@@ -37,7 +37,19 @@ async function ComplaintsList() {
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{c.marketplace}</p>
-              <p className="text-sm font-semibold text-gray-800 truncate">{c.reason}</p>
+              {c.buyerName && (
+                <div className="flex items-center gap-1.5 mb-1">
+                  <User className="w-3 h-3 text-gray-400 shrink-0" />
+                  <span className="text-sm font-bold text-gray-900 truncate">{c.buyerName}</span>
+                </div>
+              )}
+              {c.itemTitle && (
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Package className="w-3 h-3 text-orange-400 shrink-0" />
+                  <span className="text-xs text-gray-600 truncate">{c.itemTitle}</span>
+                </div>
+              )}
+              <p className="text-sm text-gray-700 truncate">{c.reason}</p>
               <p className="text-xs text-gray-400 mt-0.5">ID: {c.externalId}</p>
             </div>
             <span className={`shrink-0 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${STATUS_COLOR[c.status] ?? 'bg-gray-100 text-gray-500'}`}>

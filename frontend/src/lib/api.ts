@@ -45,6 +45,9 @@ export type Complaint = {
   priority: 'urgent' | 'high' | 'normal'
   slaDeadline: string
   createdAt: string
+  orderId: string | null
+  buyerName: string | null
+  itemTitle: string | null
 }
 
 export type Message = {

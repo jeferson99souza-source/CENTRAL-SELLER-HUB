@@ -28,6 +28,18 @@ export class Complaint {
   marketplace: string;
 
   @ApiProperty()
+  @Column({ nullable: true })
+  orderId: string;
+
+  @ApiProperty()
+  @Column({ nullable: true })
+  buyerName: string;
+
+  @ApiProperty()
+  @Column({ nullable: true })
+  itemTitle: string;
+
+  @ApiProperty()
   @Column('text')
   reason: string;
 

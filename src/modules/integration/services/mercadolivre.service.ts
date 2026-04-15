@@ -210,6 +210,11 @@ export class MercadoLivreService {
     );
   }
 
+  async getOrderById(accessToken: string, orderId: string): Promise<unknown> {
+    this.logger.log(`Buscando pedido ${orderId}`);
+    return this.mlGet(`/orders/${orderId}`, accessToken);
+  }
+
   async getOrders(accessToken: string, sellerId: string, daysBack = 90, offset = 0): Promise<unknown> {
     const now = new Date();
     const from = new Date();
