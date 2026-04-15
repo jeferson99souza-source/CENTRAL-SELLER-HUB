@@ -188,24 +188,25 @@ export class MercadoLivreService {
       text: { plain: text },
     };
 
-    this.logger.log(`Enviando mensagem pack=${packId} seller=${sellerNum} buyer=${buyerNum} payload=${JSON.stringify(payload)}`);
+    const url = `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`;
+    const bodyStr = JSON.stringify(payload);
+    this.logger.log(`[sendMessage] URL=${url}`);
+    this.logger.log(`[sendMessage] body=${bodyStr}`);
 
     try {
-      const { data } = await axios.post(
-        `${this.baseUrl}/messages/packs/${packId}/sellers/${sellerNum}?tag=post_sale`,
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
+      const { data } = await axios.post(url, payload, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
         },
-      );
+      });
+      this.logger.log(`[sendMessage] Sucesso: ${JSON.stringify(data)}`);
       return data;
     } catch (err) {
       const status = (err as any)?.response?.status;
-      const detail = JSON.stringify((err as any)?.response?.data ?? (err as Error).message);
-      this.logger.error(`Erro ao enviar mensagem ML ${status}: ${detail}`);
+      const mlError = (err as any)?.response?.data;
+      const detail = JSON.stringify(mlError ?? (err as Error).message);
+      this.logger.error(`[sendMessage] ERRO ${status} | URL=${url} | body=${bodyStr} | response=${detail}`);
       throw new Error(`ML ${status}: ${detail}`);
     }
   }
