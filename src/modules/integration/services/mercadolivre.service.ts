@@ -215,6 +215,14 @@ export class MercadoLivreService {
     return this.mlGet(`/orders/${orderId}`, accessToken);
   }
 
+  async getItem(accessToken: string, itemId: string): Promise<unknown> {
+    return this.mlGet(`/items/${itemId}`, accessToken);
+  }
+
+  async getUser(accessToken: string, userId: string): Promise<unknown> {
+    return this.mlGet(`/users/${userId}`, accessToken);
+  }
+
   async getOrders(accessToken: string, sellerId: string, daysBack = 90, offset = 0): Promise<unknown> {
     const now = new Date();
     const from = new Date();

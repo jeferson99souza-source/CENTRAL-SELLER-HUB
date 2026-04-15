@@ -16,6 +16,8 @@ import { IntegrationModule } from './modules/integration/integration.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { QueuesModule } from './modules/queues/queues.module';
+import { QuestionsModule } from './modules/questions/questions.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 // Entidades TypeORM
 import { User } from './modules/auth/entities/user.entity';
@@ -23,6 +25,8 @@ import { Company } from './modules/accounts/entities/company.entity';
 import { MarketplaceAccount } from './modules/accounts/entities/marketplace-account.entity';
 import { Message } from './modules/messaging/entities/message.entity';
 import { Complaint } from './modules/complaints/entities/complaint.entity';
+import { Question } from './modules/questions/entities/question.entity';
+import { Order } from './modules/orders/entities/order.entity';
 
 @Module({
   imports: [
@@ -42,7 +46,7 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
           return {
             type: 'postgres',
             url: databaseUrl,
-            entities: [User, Company, MarketplaceAccount, Message, Complaint],
+            entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order],
             synchronize: shouldSync,
             logging: !isProduction,
             ssl: isProduction ? { rejectUnauthorized: false } : false,
@@ -56,7 +60,7 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
           username: config.get('DB_USER', 'postgres'),
           password: config.get('DB_PASSWORD', 'postgres'),
           database: config.get('DB_NAME', 'central_seller'),
-          entities: [User, Company, MarketplaceAccount, Message, Complaint],
+          entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order],
           synchronize: shouldSync,
           logging: !isProduction,
           ssl: isProduction ? { rejectUnauthorized: false } : false,
@@ -88,6 +92,8 @@ import { Complaint } from './modules/complaints/entities/complaint.entity';
     DashboardModule,
     AutomationModule,
     QueuesModule,
+    QuestionsModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
