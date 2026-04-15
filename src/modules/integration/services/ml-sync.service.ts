@@ -10,7 +10,7 @@ import { TokenEncryptionService } from '../../../common/crypto/token-encryption.
 interface MlOrder {
   id: number;
   pack_id?: number;
-  buyer: { id: number; nickname: string };
+  buyer: { id: number; nickname: string; first_name?: string; last_name?: string };
   date_created: string;
 }
 
@@ -132,12 +132,20 @@ export class MlSyncService {
             const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
             slaDeadline.setHours(slaDeadline.getHours() + 48);
 
+            const buyerId = String(
+              msg.from?.user_id === sellerId ? msg.to?.user_id : msg.from?.user_id,
+            );
+            const buyerFullName = `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
+            const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';
+
             await this.messageRepo.save({
               tenantId: account.tenantId,
               marketplaceAccountId: account.id,
               orderId: String(order.id),
               packId: String(packId),
               externalId,
+              buyerId,
+              buyerName,
               sender,
               content: msg.text?.plain ?? '',
               status: 'pending',

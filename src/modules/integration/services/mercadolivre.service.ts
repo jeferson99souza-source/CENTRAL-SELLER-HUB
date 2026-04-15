@@ -161,6 +161,36 @@ export class MercadoLivreService {
     return this.mlGet(`/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`, accessToken);
   }
 
+  async sendMessage(
+    accessToken: string,
+    packId: string,
+    sellerId: string,
+    buyerId: string,
+    text: string,
+  ): Promise<unknown> {
+    this.logger.log(`Enviando mensagem pack=${packId} buyer=${buyerId}`);
+    const response = await fetch(`${this.baseUrl}/messages/packs/${packId}/sellers/${sellerId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: { user_id: Number(sellerId) },
+        to: { user_id: Number(buyerId) },
+        text: { plain: text },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      this.logger.error(`Erro ao enviar mensagem ML: ${err}`);
+      throw new Error(`Erro ao enviar mensagem: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async getUnansweredQuestions(
     accessToken: string,
     sellerId: string,

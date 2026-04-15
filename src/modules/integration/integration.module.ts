@@ -31,6 +31,6 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
     ShopeeService,
     AmazonService,
   ],
-  exports: [MercadoLivreService, ShopeeService, AmazonService],
+  exports: [MercadoLivreService, ShopeeService, AmazonService, TokenEncryptionService],
 })
 export class IntegrationModule {}

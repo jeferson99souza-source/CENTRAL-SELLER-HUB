@@ -28,6 +28,12 @@ export class Message {
   @Column({ name: 'external_id', nullable: true })
   externalId: string;
 
+  @Column({ name: 'buyer_id', nullable: true })
+  buyerId: string;
+
+  @Column({ name: 'buyer_name', nullable: true })
+  buyerName: string;
+
   @Column({ type: 'varchar' })
   sender: MessageSender;
 
