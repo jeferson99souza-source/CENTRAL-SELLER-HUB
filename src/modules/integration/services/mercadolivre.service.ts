@@ -158,7 +158,7 @@ export class MercadoLivreService {
 
   async getMessages(accessToken: string, packId: string): Promise<unknown> {
     this.logger.log(`Buscando mensagens do pack ${packId}`);
-    return this.mlGet(`/messages/packs/${packId}`, accessToken);
+    return this.mlGet(`/messages/packs/${packId}?tag=post_sale`, accessToken);
   }
 
   async getUnansweredQuestions(

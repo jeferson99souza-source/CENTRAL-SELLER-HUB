@@ -105,6 +105,7 @@ export class MlSyncService {
       )) as { results: MlOrder[] };
 
       const orders = ordersData?.results ?? [];
+      this.logger.log(`Pedidos encontrados para seller=${account.sellerId}: ${orders.length}`);
 
       for (const order of orders.slice(0, 20)) {
         try {
