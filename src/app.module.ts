@@ -5,7 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-// import { RedisModule } from './common/redis/redis.module';
+import { RedisModule } from './common/redis/redis.module';
 
 // Módulos da aplicação
 import { AuthModule } from './modules/auth/auth.module';
@@ -15,7 +15,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { IntegrationModule } from './modules/integration/integration.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AutomationModule } from './modules/automation/automation.module';
-// import { QueuesModule } from './modules/queues/queues.module';
+import { QueuesModule } from './modules/queues/queues.module';
 import { QuestionsModule } from './modules/questions/questions.module';
 import { OrdersModule } from './modules/orders/orders.module';
 
@@ -84,7 +84,7 @@ import { Order } from './modules/orders/entities/order.entity';
     ScheduleModule.forRoot(),
 
     // Redis global
-    // RedisModule,
+    RedisModule,
 
     // Módulos de negócio
     AuthModule,
@@ -94,7 +94,7 @@ import { Order } from './modules/orders/entities/order.entity';
     IntegrationModule,
     DashboardModule,
     AutomationModule,
-    // QueuesModule,
+    QueuesModule,
     QuestionsModule,
     OrdersModule,
   ],
