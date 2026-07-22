@@ -11,21 +11,29 @@ import Redis from 'ioredis';
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL');
 
+        let client: Redis;
         if (redisUrl) {
-          return new Redis(redisUrl, {
+          client = new Redis(redisUrl, {
             maxRetriesPerRequest: 3,
             enableReadyCheck: false,
-            lazyConnect: false,
+            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
+          });
+        } else {
+          client = new Redis({
+            host: config.get<string>('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+            password: config.get<string>('REDIS_PASSWORD') || undefined,
+            db: config.get<number>('REDIS_DB', 0),
+            maxRetriesPerRequest: 3,
+            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
           });
         }
 
-        return new Redis({
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-          password: config.get<string>('REDIS_PASSWORD') || undefined,
-          db: config.get<number>('REDIS_DB', 0),
-          maxRetriesPerRequest: 3,
+        client.on('error', (err) => {
+          console.warn('[Redis Warning]', err.message);
         });
+
+        return client;
       },
       inject: [ConfigService],
     },
