@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "rm -rf .next && next build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
     "start:prod": "next start -H 0.0.0.0 -p ${PORT:-3000}",
     "lint": "eslint"
