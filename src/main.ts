@@ -23,12 +23,7 @@ async function bootstrap() {
     .filter(Boolean);
 
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      if (/\.vercel\.app$/.test(new URL(origin).hostname)) return callback(null, true);
-      return callback(new Error(`CORS blocked: ${origin}`));
-    },
+    origin: true,
     credentials: true,
   });
 
@@ -63,8 +58,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
+  const port = process.env.PORT || 3000;
+  await app.listen(port, '0.0.0.0');
 
   console.log(`\n Central Seller HUB rodando em: http://localhost:${port}`);
   console.log(` Swagger disponível em: http://localhost:${port}/api\n`);
