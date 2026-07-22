@@ -1,6 +1,9 @@
 import { cookies } from 'next/headers'
 
-const API_URL = process.env.API_URL!
+const API_URL =
+  process.env.API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'https://central-seller-hub-production-5be8.up.railway.app/api/v1';
 
 async function getToken(): Promise<string | undefined> {
   const store = await cookies()
