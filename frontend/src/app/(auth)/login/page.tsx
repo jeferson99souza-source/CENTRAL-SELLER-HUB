@@ -1,5 +1,7 @@
 import LoginForm from './LoginForm'
 
+export const dynamic = 'force-dynamic'
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center px-6">

@@ -12,6 +12,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Central Seller Hub",
   description: "Gerencie seus marketplaces em um único lugar",
