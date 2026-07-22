@@ -66,4 +66,7 @@ async function bootstrap() {
   console.log(`\n Central Seller HUB rodando em: http://localhost:${port}`);
   console.log(` Swagger disponível em: http://localhost:${port}/api\n`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error(' Erro fatal na inicialização da aplicação:', err);
+  process.exit(1);
+});
