@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 const API_URL =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'https://central-seller-hub-production-5be8.up.railway.app/api/v1';
+  'https://central-seller-hub-production-5be6.up.railway.app/api/v1';
 
 type LoginState = { error: string } | undefined
 
