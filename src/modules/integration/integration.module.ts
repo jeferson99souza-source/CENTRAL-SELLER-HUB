@@ -27,7 +27,13 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
     AccountsModule,
     AuthModule,
     AutomationModule,
-    TypeOrmModule.forFeature([MarketplaceAccount, Message, Complaint, Question, Order]),
+    TypeOrmModule.forFeature([
+      MarketplaceAccount,
+      Message,
+      Complaint,
+      Question,
+      Order,
+    ]),
   ],
   controllers: [IntegrationController, MlWebhookController],
   providers: [
@@ -40,6 +46,11 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
     ShopeeService,
     AmazonService,
   ],
-  exports: [MercadoLivreService, ShopeeService, AmazonService, TokenEncryptionService],
+  exports: [
+    MercadoLivreService,
+    ShopeeService,
+    AmazonService,
+    TokenEncryptionService,
+  ],
 })
 export class IntegrationModule {}

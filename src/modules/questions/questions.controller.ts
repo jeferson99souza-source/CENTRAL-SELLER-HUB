@@ -1,5 +1,21 @@
-import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, HttpCode } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  HttpCode,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiBody,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { QuestionsService } from './questions.service';
@@ -14,7 +30,11 @@ export class QuestionsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar perguntas' })
-  @ApiQuery({ name: 'status', required: false, enum: ['unanswered', 'answered', 'closed_unanswered'] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['unanswered', 'answered', 'closed_unanswered'],
+  })
   findAll(@TenantId() tenantId: string, @Query('status') status?: string) {
     return this.questionsService.findAll(tenantId, status);
   }
@@ -27,7 +47,9 @@ export class QuestionsController {
 
   @Post(':id/answer')
   @ApiOperation({ summary: 'Responder pergunta via API do Mercado Livre' })
-  @ApiBody({ schema: { properties: { text: { type: 'string' } }, required: ['text'] } })
+  @ApiBody({
+    schema: { properties: { text: { type: 'string' } }, required: ['text'] },
+  })
   answerQuestion(
     @TenantId() tenantId: string,
     @Param('id') id: string,

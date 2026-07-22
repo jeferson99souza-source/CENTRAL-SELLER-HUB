@@ -27,7 +27,9 @@ export class AmazonService {
     return [];
   }
 
-  async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async refreshToken(
+    refreshToken: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     this.logger.log('Renovando token Amazon LWA');
     // TODO: POST https://api.amazon.com/auth/o2/token
     throw new Error('Not implemented');

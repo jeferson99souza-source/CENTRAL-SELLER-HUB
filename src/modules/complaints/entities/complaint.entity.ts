@@ -56,9 +56,26 @@ export class Complaint {
   @Column({ default: false })
   isReturn: boolean;
 
-  @ApiProperty({ enum: ['opened', 'mediation', 'return_requested', 'return_in_transit', 'return_received', 'refunded', 'resolved'] })
+  @ApiProperty({
+    enum: [
+      'opened',
+      'mediation',
+      'return_requested',
+      'return_in_transit',
+      'return_received',
+      'refunded',
+      'resolved',
+    ],
+  })
   @Column({ nullable: true })
-  stage: 'opened' | 'mediation' | 'return_requested' | 'return_in_transit' | 'return_received' | 'refunded' | 'resolved';
+  stage:
+    | 'opened'
+    | 'mediation'
+    | 'return_requested'
+    | 'return_in_transit'
+    | 'return_received'
+    | 'refunded'
+    | 'resolved';
 
   @ApiProperty()
   @Column({ type: 'text', nullable: true })

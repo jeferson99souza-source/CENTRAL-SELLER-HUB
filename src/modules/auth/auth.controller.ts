@@ -11,7 +11,8 @@ export class AuthController {
 
   @ApiOperation({
     summary: 'Registrar novo usuário',
-    description: 'Cria um novo usuário e um tenantId exclusivo para o seu workspace.',
+    description:
+      'Cria um novo usuário e um tenantId exclusivo para o seu workspace.',
   })
   @Post('register')
   register(@Body() dto: RegisterDto) {

@@ -27,10 +27,7 @@ export class AccountsController {
 
   @ApiOperation({ summary: 'Criar nova empresa (CNPJ)' })
   @Post('companies')
-  createCompany(
-    @TenantId() tenantId: string,
-    @Body() dto: CreateCompanyDto,
-  ) {
+  createCompany(@TenantId() tenantId: string, @Body() dto: CreateCompanyDto) {
     return this.accountsService.createCompany(tenantId, dto);
   }
 

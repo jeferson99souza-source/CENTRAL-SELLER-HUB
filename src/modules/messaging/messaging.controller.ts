@@ -1,5 +1,20 @@
-import { Controller, Get, Param, Patch, Post, Body, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags, ApiBody } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Body,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+  ApiBody,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/tenant.decorator';
@@ -44,7 +59,9 @@ export class MessagingController {
   }
 
   @ApiOperation({ summary: 'Responder mensagem via API do marketplace' })
-  @ApiBody({ schema: { properties: { text: { type: 'string' } }, required: ['text'] } })
+  @ApiBody({
+    schema: { properties: { text: { type: 'string' } }, required: ['text'] },
+  })
   @Post(':id/reply')
   replyToMessage(
     @TenantId() tenantId: string,

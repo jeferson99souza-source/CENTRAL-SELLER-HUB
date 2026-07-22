@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message } from './entities/message.entity';
@@ -87,20 +93,34 @@ export class MessagingService {
 
     // Tenta pelo ID direto; se não achar (mensagem antiga sem marketplaceAccountId), busca qualquer conta ML ativa
     const account = message.marketplaceAccountId
-      ? await this.accountRepo.findOne({ where: { id: message.marketplaceAccountId, tenantId } })
+      ? await this.accountRepo.findOne({
+          where: { id: message.marketplaceAccountId, tenantId },
+        })
       : null;
-    const resolvedAccount = account
-      ?? await this.accountRepo.findOne({ where: { tenantId, marketplace: 'mercadolivre', isActive: true } });
-    if (!resolvedAccount) throw new NotFoundException('Conta Mercado Livre não encontrada.');
+    const resolvedAccount =
+      account ??
+      (await this.accountRepo.findOne({
+        where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+      }));
+    if (!resolvedAccount)
+      throw new NotFoundException('Conta Mercado Livre não encontrada.');
 
-    const isExpired = !resolvedAccount.tokenExpiresAt || resolvedAccount.tokenExpiresAt < new Date();
+    const isExpired =
+      !resolvedAccount.tokenExpiresAt ||
+      resolvedAccount.tokenExpiresAt < new Date();
     const accessToken = isExpired
       ? await this.mlService.refreshAccountToken(resolvedAccount)
       : this.encryption.decrypt(resolvedAccount.accessTokenEnc);
 
     // Validação básica antes de chamar ML
-    if (!message.packId) throw new BadRequestException('Mensagem sem packId — não é possível responder.');
-    if (!message.buyerId || message.buyerId === 'undefined') throw new BadRequestException('Comprador não identificado nesta mensagem.');
+    if (!message.packId)
+      throw new BadRequestException(
+        'Mensagem sem packId — não é possível responder.',
+      );
+    if (!message.buyerId || message.buyerId === 'undefined')
+      throw new BadRequestException(
+        'Comprador não identificado nesta mensagem.',
+      );
 
     try {
       await this.mlService.sendMessage(
@@ -113,7 +133,9 @@ export class MessagingService {
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       this.logger.error(`Falha ao enviar mensagem: ${detail}`);
-      throw new InternalServerErrorException(detail || 'Falha ao enviar mensagem via Mercado Livre');
+      throw new InternalServerErrorException(
+        detail || 'Falha ao enviar mensagem via Mercado Livre',
+      );
     }
 
     await this.messageRepo.update(

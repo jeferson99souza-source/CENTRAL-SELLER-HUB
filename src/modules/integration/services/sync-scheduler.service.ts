@@ -39,7 +39,9 @@ export class SyncSchedulerService {
           `Cron sync tenant=${tenantId} — mensagens=${result.messages} reclamações=${result.complaints}`,
         );
       } catch (err) {
-        this.logger.error(`Erro no cron sync tenant=${tenantId}: ${(err as Error).message}`);
+        this.logger.error(
+          `Erro no cron sync tenant=${tenantId}: ${(err as Error).message}`,
+        );
       }
     }
   }

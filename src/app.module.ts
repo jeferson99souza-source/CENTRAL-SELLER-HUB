@@ -42,31 +42,30 @@ import { Order } from './modules/orders/entities/order.entity';
         const dbSync = config.get('DB_SYNC') === 'true';
         const shouldSync = dbSync || !isProduction;
 
-        // Configuração comum para o SSL do Neon
-        const sslConfig = { rejectUnauthorized: false };
+        const sslConfig = isProduction || databaseUrl ? { rejectUnauthorized: false } : false;
 
         if (databaseUrl) {
           return {
             type: 'postgres',
             url: databaseUrl,
             entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order],
-            synchronize: true, // Forçamos true para ele criar as tabelas no seu Neon agora
-            logging: true,
-            ssl: sslConfig, // Força SSL
+            synchronize: shouldSync,
+            logging: !isProduction,
+            ssl: sslConfig,
           };
         }
 
         return {
           type: 'postgres',
-          host: config.get('DB_HOST'),
+          host: config.get('DB_HOST', 'localhost'),
           port: config.get<number>('DB_PORT', 5432),
-          username: config.get('DB_USER'),
-          password: config.get('DB_PASSWORD'),
-          database: config.get('DB_NAME'),
+          username: config.get('DB_USER', 'postgres'),
+          password: config.get('DB_PASSWORD', 'postgres'),
+          database: config.get('DB_NAME', 'central_seller'),
           entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order],
-          synchronize: true, // Forçamos true para criar as tabelas
-          logging: true,
-          ssl: sslConfig, // Força SSL
+          synchronize: shouldSync,
+          logging: !isProduction,
+          ssl: sslConfig,
         };
       },
       inject: [ConfigService],

@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from './entities/company.entity';
-import { Marketplace, MarketplaceAccount } from './entities/marketplace-account.entity';
+import {
+  Marketplace,
+  MarketplaceAccount,
+} from './entities/marketplace-account.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 
 export interface UpsertMarketplaceAccountDto {
@@ -99,10 +102,7 @@ export class AccountsService {
   /**
    * Atualiza apenas os tokens de uma conta existente (usado no refresh automático).
    */
-  async updateTokens(
-    accountId: string,
-    dto: UpdateTokensDto,
-  ): Promise<void> {
+  async updateTokens(accountId: string, dto: UpdateTokensDto): Promise<void> {
     await this.accountRepo.update(accountId, {
       accessTokenEnc: dto.accessTokenEnc,
       refreshTokenEnc: dto.refreshTokenEnc,

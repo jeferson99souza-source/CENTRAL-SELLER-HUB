@@ -40,7 +40,10 @@ export class IntegrationController {
     @InjectRepository(MarketplaceAccount)
     private readonly accountRepo: Repository<MarketplaceAccount>,
   ) {
-    this.frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    this.frontendUrl = this.config.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3000',
+    );
   }
 
   // ─── Mercado Livre ──────────────────────────────────────────────────────────
@@ -76,18 +79,27 @@ export class IntegrationController {
     @Query('error_description') errorDescription?: string,
   ) {
     if (error || !code || !state) {
-      const msg = errorDescription ?? error ?? 'Parâmetros inválidos no callback';
+      const msg =
+        errorDescription ?? error ?? 'Parâmetros inválidos no callback';
       this.logger.error(`Callback ML com erro: ${msg}`);
-      return { url: `${this.frontendUrl}/contas?mlError=${encodeURIComponent(msg)}` };
+      return {
+        url: `${this.frontendUrl}/contas?mlError=${encodeURIComponent(msg)}`,
+      };
     }
     try {
       const account = await this.mlService.handleCallback(code, state);
-      this.logger.log(`Conta ML conectada: seller=${account.sellerId} name=${account.sellerName}`);
-      return { url: `${this.frontendUrl}/contas?mlConnected=${encodeURIComponent(account.sellerName)}` };
+      this.logger.log(
+        `Conta ML conectada: seller=${account.sellerId} name=${account.sellerName}`,
+      );
+      return {
+        url: `${this.frontendUrl}/contas?mlConnected=${encodeURIComponent(account.sellerName)}`,
+      };
     } catch (err) {
       const msg = (err as Error).message ?? 'Falha ao conectar conta ML';
       this.logger.error(`Erro no callback ML: ${msg}`);
-      return { url: `${this.frontendUrl}/contas?mlError=${encodeURIComponent(msg)}` };
+      return {
+        url: `${this.frontendUrl}/contas?mlError=${encodeURIComponent(msg)}`,
+      };
     }
   }
 
@@ -107,7 +119,8 @@ export class IntegrationController {
   @UseGuards(JwtAuthGuard, TenantGuard)
   @ApiOperation({
     summary: 'Testar envio de mensagem ML (diagnóstico)',
-    description: 'Envia uma mensagem de teste para um pack específico. Use para diagnosticar permissões.',
+    description:
+      'Envia uma mensagem de teste para um pack específico. Use para diagnosticar permissões.',
   })
   @Post('mercadolivre/test-message')
   async testSendMessage(
@@ -120,12 +133,15 @@ export class IntegrationController {
     if (!accounts.length) return { error: 'Nenhuma conta ML ativa' };
 
     const account = accounts[0];
-    const isExpired = !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
+    const isExpired =
+      !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
     const accessToken = isExpired
       ? await this.mlService.refreshAccountToken(account)
       : this.encryption.decrypt(account.accessTokenEnc);
 
-    this.logger.log(`[test-message] packId=${body.packId} sellerId=${account.sellerId} buyerId=${body.buyerId}`);
+    this.logger.log(
+      `[test-message] packId=${body.packId} sellerId=${account.sellerId} buyerId=${body.buyerId}`,
+    );
     try {
       const result = await this.mlService.sendMessage(
         accessToken,
@@ -175,7 +191,12 @@ export class IntegrationController {
             )
           : null;
 
-        let tokenTest: { ok: boolean; sellerId?: string; nickname?: string; error?: string };
+        let tokenTest: {
+          ok: boolean;
+          sellerId?: string;
+          nickname?: string;
+          error?: string;
+        };
         try {
           let accessToken: string;
           if (isExpired) {

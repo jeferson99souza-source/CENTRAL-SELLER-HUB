@@ -86,7 +86,9 @@ export class MercadoLivreService {
     });
 
     const url = `${this.authUrl}?${params.toString()}`;
-    this.logger.log(`Auth URL gerada para tenant=${tenantId} company=${companyId}`);
+    this.logger.log(
+      `Auth URL gerada para tenant=${tenantId} company=${companyId}`,
+    );
     return url;
   }
 
@@ -115,9 +117,7 @@ export class MercadoLivreService {
 
     const profile = await this.getSellerProfile(tokens.access_token);
 
-    const tokenExpiresAt = new Date(
-      Date.now() + tokens.expires_in * 1000,
-    );
+    const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
     const account = await this.accountsService.upsertMarketplaceAccount({
       tenantId: oauthData.tenantId,
@@ -157,7 +157,11 @@ export class MercadoLivreService {
 
   // ─── API Calls ──────────────────────────────────────────────────────────────
 
-  async getMessages(accessToken: string, packId: string, sellerId: string): Promise<unknown> {
+  async getMessages(
+    accessToken: string,
+    packId: string,
+    sellerId: string,
+  ): Promise<unknown> {
     this.logger.log(`Buscando mensagens do pack ${packId}`);
     // Endpoint correto: /messages/packs/{pack_id}/sellers/{seller_id}?tag=post_sale&mark_as_read=false
     const data = await this.mlGet(
@@ -179,8 +183,10 @@ export class MercadoLivreService {
     const sellerNum = parseInt(sellerId, 10);
     const buyerNum = parseInt(buyerId, 10);
 
-    if (isNaN(sellerNum)) throw new Error(`sellerId inválido para envio: "${sellerId}"`);
-    if (isNaN(buyerNum) || buyerNum <= 0) throw new Error(`buyerId inválido para envio: "${buyerId}"`);
+    if (isNaN(sellerNum))
+      throw new Error(`sellerId inválido para envio: "${sellerId}"`);
+    if (isNaN(buyerNum) || buyerNum <= 0)
+      throw new Error(`buyerId inválido para envio: "${buyerId}"`);
 
     // ML infere o remetente pelo token OAuth — 'from' explícito pode causar conflito
     const payload = {
@@ -204,10 +210,12 @@ export class MercadoLivreService {
       this.logger.log(`[sendMessage] Sucesso: ${JSON.stringify(data)}`);
       return data;
     } catch (err) {
-      const status = (err as any)?.response?.status;
-      const mlError = (err as any)?.response?.data;
+      const status = err?.response?.status;
+      const mlError = err?.response?.data;
       const detail = JSON.stringify(mlError ?? (err as Error).message);
-      this.logger.error(`[sendMessage] ERRO ${status} | URL=${url} | body=${bodyStr} | response=${detail}`);
+      this.logger.error(
+        `[sendMessage] ERRO ${status} | URL=${url} | body=${bodyStr} | response=${detail}`,
+      );
       throw new Error(`ML ${status}: ${detail}`);
     }
   }
@@ -236,9 +244,15 @@ export class MercadoLivreService {
     return this.mlGet(`/post-purchase/v1/claims/${claimId}`, accessToken);
   }
 
-  async getClaimReturns(accessToken: string, claimId: string): Promise<unknown> {
+  async getClaimReturns(
+    accessToken: string,
+    claimId: string,
+  ): Promise<unknown> {
     this.logger.log(`Buscando devolução da reclamação ${claimId}`);
-    return this.mlGet(`/post-purchase/v1/claims/${claimId}/returns`, accessToken);
+    return this.mlGet(
+      `/post-purchase/v1/claims/${claimId}/returns`,
+      accessToken,
+    );
   }
 
   async getOrderById(accessToken: string, orderId: string): Promise<unknown> {
@@ -261,7 +275,9 @@ export class MercadoLivreService {
 
     if (!response.ok) {
       const err = await response.text();
-      this.logger.error(`Teste de conexão ML falhou ${response.status}: ${err}`);
+      this.logger.error(
+        `Teste de conexão ML falhou ${response.status}: ${err}`,
+      );
       if (response.status === 429) {
         throw new Error(
           `Rate limit do Mercado Livre atingido (HTTP 429) — aguarde alguns segundos e tente novamente`,
@@ -279,7 +295,11 @@ export class MercadoLivreService {
     return this.mlGet(`/users/${userId}`, accessToken);
   }
 
-  async answerQuestion(accessToken: string, questionId: number, text: string): Promise<unknown> {
+  async answerQuestion(
+    accessToken: string,
+    questionId: number,
+    text: string,
+  ): Promise<unknown> {
     this.logger.log(`Respondendo pergunta ${questionId}`);
     const response = await fetch(`${this.baseUrl}/answers`, {
       method: 'POST',
@@ -299,16 +319,23 @@ export class MercadoLivreService {
     return response.json();
   }
 
-  async blockBuyer(accessToken: string, sellerId: string, buyerId: string): Promise<unknown> {
+  async blockBuyer(
+    accessToken: string,
+    sellerId: string,
+    buyerId: string,
+  ): Promise<unknown> {
     this.logger.log(`Bloqueando comprador ${buyerId} para seller=${sellerId}`);
-    const response = await fetch(`${this.baseUrl}/users/${sellerId}/blacklisted_users`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      `${this.baseUrl}/users/${sellerId}/blacklisted_users`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user: { id: Number(buyerId) } }),
       },
-      body: JSON.stringify({ user: { id: Number(buyerId) } }),
-    });
+    );
     if (!response.ok) {
       const err = await response.text();
       this.logger.warn(`Aviso ao bloquear comprador ${buyerId}: ${err}`);
@@ -317,17 +344,24 @@ export class MercadoLivreService {
     return { blocked: true };
   }
 
-  async getOrders(accessToken: string, sellerId: string, daysBack = 90, offset = 0): Promise<unknown> {
+  async getOrders(
+    accessToken: string,
+    sellerId: string,
+    daysBack = 90,
+    offset = 0,
+  ): Promise<unknown> {
     const now = new Date();
     const from = new Date();
     from.setDate(from.getDate() - daysBack);
-    
+
     // Usamos date_last_updated para trazer pedidos antigos que tiveram mensagens/alterações recentes
     const dateFrom = from.toISOString().split('.')[0] + '.000-00:00';
     const dateTo = now.toISOString().split('.')[0] + '.000-00:00';
 
-    this.logger.log(`Buscando pedidos seller=${sellerId} offset=${offset} limit=50 de ${dateFrom} ate ${dateTo}`);
-    
+    this.logger.log(
+      `Buscando pedidos seller=${sellerId} offset=${offset} limit=50 de ${dateFrom} ate ${dateTo}`,
+    );
+
     return this.mlGet(
       `/orders/search?seller=${sellerId}&sort=date_desc&offset=${offset}&limit=50&order.date_last_updated.from=${encodeURIComponent(dateFrom)}&order.date_last_updated.to=${encodeURIComponent(dateTo)}`,
       accessToken,
@@ -383,7 +417,9 @@ export class MercadoLivreService {
     if (!response.ok) {
       const err = await response.text();
       this.logger.error(`Erro ao renovar token: ${err}`);
-      throw new UnauthorizedException('Falha ao renovar token do Mercado Livre');
+      throw new UnauthorizedException(
+        'Falha ao renovar token do Mercado Livre',
+      );
     }
 
     return response.json() as Promise<MlTokenResponse>;
@@ -395,7 +431,9 @@ export class MercadoLivreService {
     });
 
     if (!response.ok) {
-      throw new UnauthorizedException('Não foi possível obter perfil do vendedor no ML');
+      throw new UnauthorizedException(
+        'Não foi possível obter perfil do vendedor no ML',
+      );
     }
 
     return response.json() as Promise<MlUserProfile>;

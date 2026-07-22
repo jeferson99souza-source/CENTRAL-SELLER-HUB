@@ -5,7 +5,10 @@ export interface TenantContext {
   userId: string;
 }
 
-const extractTenant = (_data: unknown, ctx: ExecutionContext): TenantContext => {
+const extractTenant = (
+  _data: unknown,
+  ctx: ExecutionContext,
+): TenantContext => {
   const request = ctx.switchToHttp().getRequest();
   return {
     tenantId: request.user?.tenantId,

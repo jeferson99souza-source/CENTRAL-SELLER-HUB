@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
 import { Complaint } from './entities/complaint.entity';
@@ -19,7 +23,12 @@ export class ComplaintsService {
 
   async findAll(
     tenantId: string,
-    filters: { status?: string; marketplace?: string; lastId?: string; limit?: number } = {},
+    filters: {
+      status?: string;
+      marketplace?: string;
+      lastId?: string;
+      limit?: number;
+    } = {},
   ): Promise<Complaint[]> {
     const { status, marketplace, lastId, limit = 20 } = filters;
 
@@ -30,15 +39,19 @@ export class ComplaintsService {
       .take(limit);
 
     if (status) qb.andWhere('c.status = :status', { status });
-    if (marketplace) qb.andWhere('c.marketplace = :marketplace', { marketplace });
+    if (marketplace)
+      qb.andWhere('c.marketplace = :marketplace', { marketplace });
     if (lastId) qb.andWhere('c.id > :lastId', { lastId });
 
     return qb.getMany();
   }
 
   async findOne(id: string, tenantId: string): Promise<Complaint> {
-    const complaint = await this.complaintRepo.findOne({ where: { id, tenantId } });
-    if (!complaint) throw new NotFoundException(`Reclamação ${id} não encontrada.`);
+    const complaint = await this.complaintRepo.findOne({
+      where: { id, tenantId },
+    });
+    if (!complaint)
+      throw new NotFoundException(`Reclamação ${id} não encontrada.`);
     return complaint;
   }
 
@@ -84,7 +97,11 @@ export class ComplaintsService {
     });
   }
 
-  async updateStage(id: string, tenantId: string, stage: Complaint['stage']): Promise<Complaint> {
+  async updateStage(
+    id: string,
+    tenantId: string,
+    stage: Complaint['stage'],
+  ): Promise<Complaint> {
     const complaint = await this.findOne(id, tenantId);
     const updates: Partial<Complaint> = { stage };
     if (stage === 'resolved' || stage === 'refunded') {
@@ -95,7 +112,11 @@ export class ComplaintsService {
     return this.findOne(id, tenantId);
   }
 
-  async updateNotes(id: string, tenantId: string, notes: string): Promise<Complaint> {
+  async updateNotes(
+    id: string,
+    tenantId: string,
+    notes: string,
+  ): Promise<Complaint> {
     await this.findOne(id, tenantId);
     await this.complaintRepo.update({ id, tenantId }, { notes });
     return this.findOne(id, tenantId);

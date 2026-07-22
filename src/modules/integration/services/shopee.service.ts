@@ -28,13 +28,20 @@ export class ShopeeService {
     return [];
   }
 
-  async sendMessage(config: ShopeeConfig, conversationId: string, message: string) {
+  async sendMessage(
+    config: ShopeeConfig,
+    conversationId: string,
+    message: string,
+  ) {
     this.logger.log(`Enviando mensagem para conversa ${conversationId}`);
     // TODO: POST /api/v2/message/send_message
     return null;
   }
 
-  async refreshToken(shopId: string, refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async refreshToken(
+    shopId: string,
+    refreshToken: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     this.logger.log(`Renovando token Shopee — shop: ${shopId}`);
     // TODO: POST /api/v2/auth/access_token/get
     throw new Error('Not implemented');

@@ -7,7 +7,12 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { ComplaintsService } from './complaints.service';
@@ -22,7 +27,11 @@ export class ComplaintsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar reclamações do tenant com filtros' })
-  @ApiQuery({ name: 'status', required: false, enum: ['open', 'pending', 'closed'] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['open', 'pending', 'closed'],
+  })
   @ApiQuery({ name: 'marketplace', required: false })
   findAll(
     @TenantId() tenantId: string,

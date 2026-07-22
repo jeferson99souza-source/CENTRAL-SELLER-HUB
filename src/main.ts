@@ -41,7 +41,9 @@ async function bootstrap() {
   // Swagger
   const config = new DocumentBuilder()
     .setTitle('Central Seller HUB')
-    .setDescription('API para centralização de operações em múltiplos marketplaces')
+    .setDescription(
+      'API para centralização de operações em múltiplos marketplaces',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .addTag('accounts', 'Empresas e contas de marketplace')

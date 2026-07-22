@@ -7,7 +7,10 @@ import { Company } from './entities/company.entity';
 import { MarketplaceAccount } from './entities/marketplace-account.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Company, MarketplaceAccount]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([Company, MarketplaceAccount]),
+    AuthModule,
+  ],
   controllers: [AccountsController],
   providers: [AccountsService],
   exports: [AccountsService],

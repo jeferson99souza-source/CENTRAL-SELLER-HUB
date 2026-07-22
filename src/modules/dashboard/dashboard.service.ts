@@ -36,7 +36,10 @@ export class DashboardService {
     private readonly redis: Redis,
   ) {}
 
-  async getKPIs(tenantId: string, period: '24h' | '7d' | '30d' = '24h'): Promise<DashboardKPIs> {
+  async getKPIs(
+    tenantId: string,
+    period: '24h' | '7d' | '30d' = '24h',
+  ): Promise<DashboardKPIs> {
     const cacheKey = `dashboard:kpis:${tenantId}:${period}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) return JSON.parse(cached) as DashboardKPIs;
@@ -50,18 +53,28 @@ export class DashboardService {
       complaintsSlaBreached,
       complaintsByMarketplace,
     ] = await Promise.all([
-      this.messageRepo.count({ where: { tenantId, createdAt: MoreThan(since) } as any }),
-      this.complaintRepo.count({ where: { tenantId, createdAt: MoreThan(since) } as any }),
-      this.complaintRepo.count({
-        where: { tenantId, status: 'open', slaDeadline: MoreThan(new Date(0)) } as any,
-      }).then(async () => {
-        return this.complaintRepo
-          .createQueryBuilder('c')
-          .where('c.tenantId = :tenantId', { tenantId })
-          .andWhere('c.status = :status', { status: 'open' })
-          .andWhere('c.slaDeadline < :now', { now: new Date() })
-          .getCount();
+      this.messageRepo.count({
+        where: { tenantId, createdAt: MoreThan(since) } as any,
       }),
+      this.complaintRepo.count({
+        where: { tenantId, createdAt: MoreThan(since) } as any,
+      }),
+      this.complaintRepo
+        .count({
+          where: {
+            tenantId,
+            status: 'open',
+            slaDeadline: MoreThan(new Date(0)),
+          } as any,
+        })
+        .then(async () => {
+          return this.complaintRepo
+            .createQueryBuilder('c')
+            .where('c.tenantId = :tenantId', { tenantId })
+            .andWhere('c.status = :status', { status: 'open' })
+            .andWhere('c.slaDeadline < :now', { now: new Date() })
+            .getCount();
+        }),
       this.complaintRepo
         .createQueryBuilder('c')
         .select('c.marketplace', 'marketplace')

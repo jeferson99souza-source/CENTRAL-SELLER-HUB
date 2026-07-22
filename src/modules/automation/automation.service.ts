@@ -1,11 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-export type MessageClassification = 'reclamacao' | 'pos_venda' | 'pergunta' | 'outro';
+export type MessageClassification =
+  | 'reclamacao'
+  | 'pos_venda'
+  | 'pergunta'
+  | 'outro';
 
 const KEYWORDS: Record<MessageClassification, string[]> = {
-  reclamacao: ['produto com defeito', 'não chegou', 'errado', 'devolver', 'reembolso', 'cancelar'],
-  pos_venda: ['entrega', 'prazo', 'codigo de rastreio', 'onde está', 'quando chega'],
-  pergunta: ['tem estoque', 'disponível', 'qual o tamanho', 'aceita', 'garantia'],
+  reclamacao: [
+    'produto com defeito',
+    'não chegou',
+    'errado',
+    'devolver',
+    'reembolso',
+    'cancelar',
+  ],
+  pos_venda: [
+    'entrega',
+    'prazo',
+    'codigo de rastreio',
+    'onde está',
+    'quando chega',
+  ],
+  pergunta: [
+    'tem estoque',
+    'disponível',
+    'qual o tamanho',
+    'aceita',
+    'garantia',
+  ],
   outro: [],
 };
 
