@@ -2,6 +2,8 @@ import { User } from 'lucide-react'
 import { logout } from '@/app/actions'
 import SideNav from './SideNav'
 
+export const dynamic = 'force-dynamic'
+
 export default function HubLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex font-sans text-[#1A1A1A]">

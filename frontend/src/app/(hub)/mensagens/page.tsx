@@ -26,6 +26,8 @@ function Skeleton() {
   )
 }
 
+export const dynamic = 'force-dynamic'
+
 export default function MensagensPage() {
   return (
     <div className="space-y-4">

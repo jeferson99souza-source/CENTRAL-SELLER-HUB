@@ -25,6 +25,8 @@ function Skeleton() {
   )
 }
 
+export const dynamic = 'force-dynamic'
+
 export default function ReclamacoesPage() {
   return (
     <div className="space-y-4">

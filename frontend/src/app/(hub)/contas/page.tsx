@@ -1,6 +1,8 @@
 import { getCompanies } from '@/app/actions'
 import EmpresasPanel from './EmpresasPanel'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ContasPage({
   searchParams,
 }: {
