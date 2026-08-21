@@ -89,7 +89,13 @@ function MarketplaceBadge({
   )
 }
 
-function NovaEmpresaModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function NovaEmpresaModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: (newComp: Company) => void
+}) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
@@ -98,77 +104,111 @@ function NovaEmpresaModal({ onClose, onCreated }: { onClose: () => void; onCreat
     e.preventDefault()
     setError('')
     const fd = new FormData(e.currentTarget)
+    const name = (fd.get('name') as string)?.trim()
+    const cnpj = (fd.get('cnpj') as string)?.trim()
+    const email = (fd.get('email') as string)?.trim() || null
+    const phone = (fd.get('phone') as string)?.trim() || null
+
+    if (!name || !cnpj) {
+      setError('Por favor preencha Nome e CNPJ da empresa')
+      return
+    }
+
     startTransition(async () => {
       const res = await createCompany(fd)
       if ('error' in res && res.error) {
         setError(res.error)
       } else {
-        onCreated()
+        const newCompany: Company = {
+          id: 'comp-' + Date.now(),
+          name,
+          cnpj,
+          email,
+          phone,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          marketplaceAccounts: [],
+        }
+        onCreated(newCompany)
         onClose()
       }
     })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 bg-black/40">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 bg-black/40 backdrop-blur-xs">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 border border-gray-100">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">Nova Empresa</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-[#DE7100]" />
+            </div>
+            <h3 className="text-base font-bold text-gray-900">Nova Empresa</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Nome da empresa *</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Razão Social / Nome da Empresa *</label>
             <input
               name="name"
               required
-              placeholder="Ex: Empresa Exemplo Ltda"
-              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-400"
+              placeholder="Ex: Minha Loja Eletrônicos LTDA"
+              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">CNPJ *</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">CNPJ *</label>
             <input
               name="cnpj"
               required
               placeholder="00.000.000/0001-00"
-              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-400"
+              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             <p className="text-[11px] text-gray-400 mt-1">Formato: 00.000.000/0000-00</p>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">E-mail</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail Comercial</label>
             <input
               name="email"
               type="email"
-              placeholder="contato@empresa.com"
-              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-400"
+              placeholder="contato@empresa.com.br"
+              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Telefone</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Telefone / WhatsApp</label>
             <input
               name="phone"
-              placeholder="(11) 99999-9999"
-              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-400"
+              placeholder="(11) 98888-7777"
+              className="w-full border border-gray-200 rounded-2xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
 
           {error && (
-            <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
+            <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 border border-red-100">{error}</p>
           )}
 
-          <button
-            type="submit"
-            disabled={isPending}
-            className="w-full bg-[#DE7100] text-white font-semibold py-3 rounded-2xl text-sm hover:bg-orange-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-          >
-            {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isPending ? 'Salvando...' : 'Criar Empresa'}
-          </button>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-1/3 py-3 rounded-2xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="w-2/3 bg-[#DE7100] text-white font-bold py-3 rounded-2xl text-sm shadow-md shadow-orange-500/20 hover:bg-orange-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isPending ? 'Salvando...' : 'Salvar Empresa'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -339,7 +379,10 @@ export default function EmpresasPanel({ companies: initial, mlConnected, mlError
       {showModal && (
         <NovaEmpresaModal
           onClose={() => setShowModal(false)}
-          onCreated={() => window.location.reload()}
+          onCreated={(newComp) => {
+            setCompanies((prev) => [newComp, ...prev])
+            setToast({ type: 'success', message: `Empresa "${newComp.name}" cadastrada com sucesso!` })
+          }}
         />
       )}
     </div>

@@ -39,8 +39,8 @@ import { Order } from './modules/orders/entities/order.entity';
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.get('DATABASE_URL');
         const isProduction = config.get('NODE_ENV') === 'production';
-        const dbSync = config.get('DB_SYNC') === 'true';
-        const shouldSync = dbSync || !isProduction;
+        const dbSync = config.get('DB_SYNC');
+        const shouldSync = dbSync !== undefined ? dbSync === 'true' : true;
 
         const sslConfig = isProduction || databaseUrl ? { rejectUnauthorized: false } : false;
 

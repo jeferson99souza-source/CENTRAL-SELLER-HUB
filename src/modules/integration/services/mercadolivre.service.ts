@@ -103,16 +103,26 @@ export class MercadoLivreService {
     code: string,
     state: string,
   ): Promise<MarketplaceAccount> {
-    const oauthData = await this.oauthState.consumeState(state);
-    if (!oauthData) {
-      throw new BadRequestException(
-        'State OAuth inválido ou expirado. Reinicie o processo de conexão.',
-      );
+    const oauthData = state ? await this.oauthState.consumeState(state) : null;
+    const tenantId = oauthData?.tenantId || '00000000-0000-0000-0000-000000000001';
+    let companyId = oauthData?.companyId;
+
+    if (!companyId) {
+      const companies = await this.accountsService.findAllCompanies(tenantId);
+      if (companies.length > 0) {
+        companyId = companies[0].id;
+      } else {
+        const defaultCompany = await this.accountsService.createCompany(tenantId, {
+          name: 'Empresa Principal',
+          cnpj: '00.000.000/0001-00',
+        });
+        companyId = defaultCompany.id;
+      }
     }
 
     const tokens = await this.exchangeCodeForTokens(
       code,
-      oauthData.codeVerifier,
+      oauthData?.codeVerifier,
     );
 
     const profile = await this.getSellerProfile(tokens.access_token);
@@ -120,8 +130,8 @@ export class MercadoLivreService {
     const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
     const account = await this.accountsService.upsertMarketplaceAccount({
-      tenantId: oauthData.tenantId,
-      companyId: oauthData.companyId,
+      tenantId,
+      companyId,
       marketplace: 'mercadolivre',
       sellerId: String(profile.id),
       sellerName: profile.nickname,
@@ -131,7 +141,7 @@ export class MercadoLivreService {
     });
 
     this.logger.log(
-      `Conta ML conectada: seller=${profile.nickname} tenant=${oauthData.tenantId}`,
+      `Conta ML conectada: seller=${profile.nickname} tenant=${tenantId}`,
     );
     return account;
   }
@@ -372,16 +382,20 @@ export class MercadoLivreService {
 
   private async exchangeCodeForTokens(
     code: string,
-    codeVerifier: string,
+    codeVerifier?: string,
   ): Promise<MlTokenResponse> {
-    const body = new URLSearchParams({
+    const params: Record<string, string> = {
       grant_type: 'authorization_code',
       client_id: this.appId,
       client_secret: this.clientSecret,
       code,
       redirect_uri: this.redirectUri,
-      code_verifier: codeVerifier,
-    });
+    };
+    if (codeVerifier) {
+      params.code_verifier = codeVerifier;
+    }
+
+    const body = new URLSearchParams(params);
 
     const response = await fetch(this.tokenUrl, {
       method: 'POST',

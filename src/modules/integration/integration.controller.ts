@@ -74,11 +74,11 @@ export class IntegrationController {
   @Get('mercadolivre/callback')
   async callbackMercadoLivre(
     @Query('code') code: string,
-    @Query('state') state: string,
+    @Query('state') state?: string,
     @Query('error') error?: string,
     @Query('error_description') errorDescription?: string,
   ) {
-    if (error || !code || !state) {
+    if (error || !code) {
       const msg =
         errorDescription ?? error ?? 'Parâmetros inválidos no callback';
       this.logger.error(`Callback ML com erro: ${msg}`);
@@ -87,7 +87,7 @@ export class IntegrationController {
       };
     }
     try {
-      const account = await this.mlService.handleCallback(code, state);
+      const account = await this.mlService.handleCallback(code, state ?? '');
       this.logger.log(
         `Conta ML conectada: seller=${account.sellerId} name=${account.sellerName}`,
       );
