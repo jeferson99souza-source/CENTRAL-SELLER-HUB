@@ -51,12 +51,12 @@ export class MercadoLivreService {
     private readonly encryption: TokenEncryptionService,
     private readonly accountsService: AccountsService,
   ) {
-    this.baseUrl = this.config.getOrThrow<string>('ML_API_BASE_URL');
-    this.appId = this.config.getOrThrow<string>('ML_APP_ID');
-    this.clientSecret = this.config.getOrThrow<string>('ML_CLIENT_SECRET');
-    this.redirectUri = this.config.getOrThrow<string>('ML_REDIRECT_URI');
-    this.authUrl = this.config.getOrThrow<string>('ML_AUTH_URL');
-    this.tokenUrl = this.config.getOrThrow<string>('ML_TOKEN_URL');
+    this.baseUrl = this.config.get<string>('ML_API_BASE_URL', 'https://api.mercadolibre.com');
+    this.appId = this.config.get<string>('ML_APP_ID', '1330194094772831');
+    this.clientSecret = this.config.get<string>('ML_CLIENT_SECRET', 'dvUdMrDaaOBkOFymt78Uh5YXXZJeHF4v');
+    this.redirectUri = this.config.get<string>('ML_REDIRECT_URI', 'https://central-seller-hub-production-c6ae.up.railway.app/api/v1/integration/mercadolivre/callback');
+    this.authUrl = this.config.get<string>('ML_AUTH_URL', 'https://auth.mercadolivre.com.br/authorization');
+    this.tokenUrl = this.config.get<string>('ML_TOKEN_URL', 'https://api.mercadolibre.com/oauth/token');
   }
 
   // ─── OAuth ─────────────────────────────────────────────────────────────────
@@ -406,7 +406,7 @@ export class MercadoLivreService {
     if (!response.ok) {
       const err = await response.text();
       this.logger.error(`Erro ao trocar code por token: ${err}`);
-      throw new UnauthorizedException('Falha ao obter tokens do Mercado Livre');
+      throw new UnauthorizedException(`Falha ao obter tokens do Mercado Livre: ${err}`);
     }
 
     return response.json() as Promise<MlTokenResponse>;
