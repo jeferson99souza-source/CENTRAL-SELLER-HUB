@@ -54,7 +54,7 @@ export class MercadoLivreService {
     this.baseUrl = this.config.get<string>('ML_API_BASE_URL', 'https://api.mercadolibre.com');
     this.appId = this.config.get<string>('ML_APP_ID', '1330194094772831');
     this.clientSecret = this.config.get<string>('ML_CLIENT_SECRET', 'dvUdMrDaaOBkOFymt78Uh5YXXZJeHF4v');
-    this.redirectUri = this.config.get<string>('ML_REDIRECT_URI', 'https://central-seller-hub-production-c6ae.up.railway.app/api/v1/integration/mercadolivre/callback');
+    this.redirectUri = 'https://central-seller-hub-production-c6ae.up.railway.app/api/v1/integration/mercadolivre/callback';
     this.authUrl = this.config.get<string>('ML_AUTH_URL', 'https://auth.mercadolivre.com.br/authorization');
     this.tokenUrl = this.config.get<string>('ML_TOKEN_URL', 'https://api.mercadolibre.com/oauth/token');
   }
