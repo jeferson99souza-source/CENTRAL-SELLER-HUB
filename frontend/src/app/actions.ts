@@ -10,6 +10,17 @@ const API_URL =
 
 type LoginState = { error: string } | undefined
 
+async function parseApiError(res: Response, fallback: string): Promise<string> {
+  const errData = await res.json().catch(() => ({}))
+  const msg = errData?.error?.message || errData?.message
+  if (Array.isArray(msg)) return msg[0] || fallback
+  return msg || fallback
+}
+
+function networkError(err: unknown): string {
+  return err instanceof Error ? err.message : 'Não foi possível conectar ao servidor'
+}
+
 export async function login(
   _prevState: LoginState,
   formData: FormData,
@@ -22,7 +33,6 @@ export async function login(
   }
 
   let tokenToSet: string | null = null
-  let errorMessage: string | null = null
 
   try {
     const controller = new AbortController()
@@ -40,20 +50,10 @@ export async function login(
       const data = (await res.json()) as { accessToken: string }
       tokenToSet = data.accessToken
     } else {
-      const errData = await res.json().catch(() => ({}))
-      const msg = errData?.error?.message || errData?.message || 'E-mail ou senha inválidos'
-      if (res.status === 401 || res.status === 400) {
-        errorMessage = Array.isArray(msg) ? msg[0] : msg
-      } else {
-        tokenToSet = 'demo_hub_admin_token_2026'
-      }
+      return { error: await parseApiError(res, 'E-mail ou senha inválidos') }
     }
   } catch (err) {
-    tokenToSet = 'demo_hub_admin_token_2026'
-  }
-
-  if (errorMessage) {
-    return { error: errorMessage }
+    return { error: networkError(err) }
   }
 
   if (tokenToSet) {
@@ -68,17 +68,6 @@ export async function login(
   }
 
   return { error: 'Não foi possível realizar o login' }
-}
-
-export async function demoLogin() {
-  const store = await cookies()
-  store.set('token', 'demo_hub_admin_token_2026', {
-    httpOnly: true,
-    path: '/',
-    maxAge: 60 * 60 * 24 * 7,
-    sameSite: 'lax',
-  })
-  redirect('/dashboard')
 }
 
 export async function registerUser(
@@ -98,7 +87,6 @@ export async function registerUser(
   }
 
   let tokenToSet: string | null = null
-  let errorMessage: string | null = null
 
   try {
     const controller = new AbortController()
@@ -116,20 +104,10 @@ export async function registerUser(
       const data = (await res.json()) as { accessToken: string }
       tokenToSet = data.accessToken
     } else {
-      const errData = await res.json().catch(() => ({}))
-      const msg = errData?.error?.message || errData?.message
-      if (res.status === 409 || res.status === 400) {
-        errorMessage = Array.isArray(msg) ? msg[0] : (msg || 'Dados de cadastro inválidos')
-      } else {
-        tokenToSet = 'demo_hub_admin_token_2026'
-      }
+      return { error: await parseApiError(res, 'Dados de cadastro inválidos') }
     }
-  } catch {
-    tokenToSet = 'demo_hub_admin_token_2026'
-  }
-
-  if (errorMessage) {
-    return { error: errorMessage }
+  } catch (err) {
+    return { error: networkError(err) }
   }
 
   if (tokenToSet) {
@@ -168,9 +146,10 @@ export async function syncML() {
       const body = await res.json()
       return { success: true, data: body.data }
     }
-  } catch {}
-
-  return { success: true, data: { syncedMessages: 14, syncedQuestions: 6, syncedOrders: 8 } }
+    return { error: await parseApiError(res, 'Não foi possível sincronizar com o Mercado Livre') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function updateComplaintStage(id: string, stage: string) {
@@ -184,8 +163,10 @@ export async function updateComplaintStage(id: string, stage: string) {
       body: JSON.stringify({ stage }),
     })
     if (res.ok) return { success: true }
-  } catch {}
-  return { success: true }
+    return { error: await parseApiError(res, 'Não foi possível atualizar a reclamação') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function updateComplaintNotes(id: string, notes: string) {
@@ -199,8 +180,10 @@ export async function updateComplaintNotes(id: string, notes: string) {
       body: JSON.stringify({ notes }),
     })
     if (res.ok) return { success: true }
-  } catch {}
-  return { success: true }
+    return { error: await parseApiError(res, 'Não foi possível salvar as anotações') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function dismissQuestion(questionId: string) {
@@ -213,8 +196,10 @@ export async function dismissQuestion(questionId: string) {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (res.ok) return { success: true }
-  } catch {}
-  return { success: true }
+    return { error: await parseApiError(res, 'Não foi possível descartar a pergunta') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function blockBuyer(questionId: string) {
@@ -227,8 +212,10 @@ export async function blockBuyer(questionId: string) {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (res.ok) return { success: true }
-  } catch {}
-  return { success: true }
+    return { error: await parseApiError(res, 'Não foi possível bloquear o comprador') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function aiSuggestQuestion(questionId: string) {
@@ -244,15 +231,10 @@ export async function aiSuggestQuestion(questionId: string) {
       const body = await res.json()
       return { suggestion: body.suggestion as string }
     }
-  } catch {}
-
-  const defaultSuggestions = [
-    'Olá! Sim, o produto é original, lacrado de fábrica, acompanha nota fiscal e possui garantia de 12 meses com envio imediato.',
-    'Boa tarde! Temos a pronta entrega. Comprando agora até às 14h, despachamos no mesmo dia pelo envio Full.',
-    'Olá! Sim, é 100% compatível. Acompanha manual e todos os acessórios necessários para instalação imediata.',
-  ]
-  const randomSuggestion = defaultSuggestions[Math.floor(Math.random() * defaultSuggestions.length)]
-  return { suggestion: randomSuggestion }
+    return { error: await parseApiError(res, 'Não foi possível gerar a sugestão') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function answerQuestion(questionId: string, text: string) {
@@ -273,23 +255,16 @@ export async function answerQuestion(questionId: string, text: string) {
     if (res.ok) {
       return { success: true }
     }
-  } catch {}
-
-  return { success: true }
+    return { error: await parseApiError(res, 'Não foi possível enviar a resposta') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function getCompanies() {
   const store = await cookies()
   const token = store.get('token')?.value
   if (!token) return { error: 'Não autorizado' }
-
-  let customCompanies: any[] = []
-  const customStr = store.get('custom_companies')?.value
-  if (customStr) {
-    try {
-      customCompanies = JSON.parse(customStr)
-    } catch {}
-  }
 
   try {
     const res = await fetch(`${API_URL}/accounts/companies`, {
@@ -299,44 +274,12 @@ export async function getCompanies() {
     if (res.ok) {
       const data = await res.json()
       const apiCompanies = Array.isArray(data) ? data : (data?.data ?? [])
-      const merged = [...customCompanies, ...apiCompanies]
-      const unique = merged.filter((c, idx, self) =>
-        idx === self.findIndex((t) => t.id === c.id || t.cnpj === c.cnpj)
-      )
-      if (unique.length > 0) {
-        return { companies: unique }
-      }
+      return { companies: apiCompanies }
     }
-  } catch {}
-
-  const defaultMockCompanies = [
-    {
-      id: 'comp-tech-1',
-      name: 'TechStore Distribuidora LTDA',
-      cnpj: '45.123.890/0001-22',
-      email: 'contato@techstore.com.br',
-      phone: '(11) 98765-4321',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      marketplaceAccounts: [
-        {
-          id: 'acc-ml-1',
-          marketplace: 'mercadolivre',
-          sellerName: 'TECHSTORE_OFICIAL',
-          sellerId: '139481928',
-          isActive: true,
-          lastSyncAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-        },
-      ],
-    },
-  ]
-
-  const merged = [...customCompanies, ...defaultMockCompanies]
-  const unique = merged.filter((c, idx, self) =>
-    idx === self.findIndex((t) => t.id === c.id || t.cnpj === c.cnpj)
-  )
-
-  return { companies: unique }
+    return { error: await parseApiError(res, 'Não foi possível carregar as empresas') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
 }
 
 export async function createCompany(formData: FormData) {
@@ -353,42 +296,21 @@ export async function createCompany(formData: FormData) {
     return { error: 'Nome e CNPJ da empresa são obrigatórios' }
   }
 
-  const newCompany = {
-    id: 'comp-' + Date.now(),
-    name,
-    cnpj,
-    email,
-    phone,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    marketplaceAccounts: [],
-  }
-
   try {
-    await fetch(`${API_URL}/accounts/companies`, {
+    const res = await fetch(`${API_URL}/accounts/companies`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, cnpj, email, phone }),
     })
-  } catch {}
-
-  let customCompanies: any[] = []
-  const customStr = store.get('custom_companies')?.value
-  if (customStr) {
-    try {
-      customCompanies = JSON.parse(customStr)
-    } catch {}
+    if (res.ok) {
+      const data = await res.json()
+      const company = data?.data ?? data
+      return { success: true, company }
+    }
+    return { error: await parseApiError(res, 'Não foi possível criar a empresa') }
+  } catch (err) {
+    return { error: networkError(err) }
   }
-
-  customCompanies.unshift(newCompany)
-  store.set('custom_companies', JSON.stringify(customCompanies), {
-    httpOnly: true,
-    path: '/',
-    maxAge: 60 * 60 * 24 * 30,
-    sameSite: 'lax',
-  })
-
-  return { success: true, company: newCompany }
 }
 
 export async function getMLConnectUrl(companyId: string) {
@@ -405,12 +327,11 @@ export async function getMLConnectUrl(companyId: string) {
       if (body?.data?.authUrl) {
         return { authUrl: body.data.authUrl as string }
       }
+      return { error: 'Resposta inválida do servidor ao gerar o link de conexão' }
     }
-  } catch {}
-
-  const redirectUri = encodeURIComponent('https://central-seller-hub-production-c6ae.up.railway.app/api/v1/integration/mercadolivre/callback')
-  return {
-    authUrl: `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=1330194094772831&redirect_uri=${redirectUri}`
+    return { error: await parseApiError(res, 'Não foi possível gerar o link de conexão') }
+  } catch (err) {
+    return { error: networkError(err) }
   }
 }
 
@@ -430,14 +351,8 @@ export async function diagnoseML() {
       const body = await res.json()
       return { data: body.data }
     }
-  } catch {}
-
-  return {
-    data: {
-      status: 'healthy',
-      connectedAccounts: 2,
-      lastWebhookReceivedAt: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
-      queueHealth: 'operational',
-    },
+    return { error: await parseApiError(res, 'Não foi possível diagnosticar a integração') }
+  } catch (err) {
+    return { error: networkError(err) }
   }
 }
