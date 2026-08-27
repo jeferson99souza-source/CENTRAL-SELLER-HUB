@@ -179,7 +179,16 @@ export class MercadoLivreService {
       accessToken,
     );
     const messages = (data as any)?.messages ?? [];
-    this.logger.log(`Pack ${packId}: ${messages.length} mensagens encontradas`);
+    if (messages.length === 0) {
+      // Diagnóstico: mostra a resposta crua do ML para entender por que veio vazio
+      this.logger.warn(
+        `Pack ${packId}: 0 msgs — resposta ML: ${JSON.stringify(data).slice(0, 400)}`,
+      );
+    } else {
+      this.logger.log(
+        `Pack ${packId}: ${messages.length} mensagens encontradas`,
+      );
+    }
     return data;
   }
 
