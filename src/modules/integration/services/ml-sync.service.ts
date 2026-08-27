@@ -189,9 +189,9 @@ export class MlSyncService {
 
       for (const order of allOrders) {
         try {
-          // ML mensagens exigem um pack_id real — orders sem pack não têm thread
-          if (!order.pack_id) continue;
-          const packId = order.pack_id;
+          // No ML, pedidos de item único vêm com pack_id null, mas ainda têm
+          // conversa pós-venda acessível usando o próprio order_id como pack.
+          const packId = order.pack_id ?? order.id;
           const messagesData = (await this.mlService.getMessages(
             accessToken,
             String(packId),
