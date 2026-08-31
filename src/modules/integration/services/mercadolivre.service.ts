@@ -305,6 +305,14 @@ export class MercadoLivreService {
     return this.mlGet(`/packs/${packId}`, accessToken);
   }
 
+  /**
+   * Busca o envio (shipment) — traz o logistic_type (fulfillment/self_service/
+   * cross_docking/drop_off) que não vem no pedido.
+   */
+  async getShipment(accessToken: string, shipmentId: string): Promise<unknown> {
+    return this.mlGet(`/shipments/${shipmentId}`, accessToken);
+  }
+
   async getItem(accessToken: string, itemId: string): Promise<unknown> {
     return this.mlGet(`/items/${itemId}`, accessToken);
   }

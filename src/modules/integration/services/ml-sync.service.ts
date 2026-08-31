@@ -243,6 +243,7 @@ export class MlSyncService {
           }
           synced += await this.savePackMessages(
             account,
+            accessToken,
             packId,
             mlMessages,
             order,
@@ -265,6 +266,7 @@ export class MlSyncService {
    */
   private async savePackMessages(
     account: MarketplaceAccount,
+    accessToken: string,
     packId: string,
     mlMessages: MlMessage[],
     order?: MlOrder,
@@ -285,7 +287,19 @@ export class MlSyncService {
     const orderId = order ? String(order.id) : undefined;
     const orderStatus = order?.status ?? undefined;
     const shippingStatus = order?.shipping?.status ?? undefined;
-    const logisticType = order?.shipping?.logistic_type ?? undefined;
+    let logisticType = order?.shipping?.logistic_type ?? undefined;
+    if (!logisticType && order?.shipping?.id) {
+      try {
+        const shipment = (await this.mlService.getShipment(
+          accessToken,
+          String(order.shipping.id),
+        )) as { logistic_type?: string; logistic?: { type?: string } };
+        logisticType =
+          shipment?.logistic_type ?? shipment?.logistic?.type ?? undefined;
+      } catch {
+        /* segue sem tipo de logística */
+      }
+    }
 
     for (const msg of mlMessages) {
       const externalId = String(msg.id);
