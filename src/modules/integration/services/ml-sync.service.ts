@@ -160,6 +160,16 @@ export class MlSyncService {
   ): Promise<number> {
     let synced = 0;
     try {
+      // Diagnóstico: lista conversas com mensagens não lidas (não sofrem o
+      // bloqueio de Full — se há mensagem para ler, o ML retorna aqui)
+      try {
+        await this.mlService.getUnreadMessages(accessToken);
+      } catch (unreadErr) {
+        this.logger.warn(
+          `Falha ao buscar não lidas: ${(unreadErr as Error).message}`,
+        );
+      }
+
       let offset = 0;
       let hasMore = true;
       const allOrders: MlOrder[] = [];

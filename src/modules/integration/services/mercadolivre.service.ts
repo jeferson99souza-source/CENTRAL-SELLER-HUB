@@ -192,6 +192,23 @@ export class MercadoLivreService {
     return data;
   }
 
+  /**
+   * Lista as conversas com mensagens não lidas do vendedor.
+   * Diferente de varrer pedidos (muitos bloqueados por Full), este endpoint
+   * retorna só os packs que REALMENTE têm mensagem para ler.
+   */
+  async getUnreadMessages(accessToken: string): Promise<unknown> {
+    this.logger.log('Buscando mensagens não lidas (role=seller)');
+    const data = await this.mlGet(
+      `/messages/unread?role=seller&tag=post_sale`,
+      accessToken,
+    );
+    this.logger.warn(
+      `[unread] resposta ML: ${JSON.stringify(data).slice(0, 600)}`,
+    );
+    return data;
+  }
+
   async sendMessage(
     accessToken: string,
     packId: string,
