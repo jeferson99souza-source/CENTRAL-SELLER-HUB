@@ -41,8 +41,13 @@ export class DashboardService {
     period: '24h' | '7d' | '30d' = '24h',
   ): Promise<DashboardKPIs> {
     const cacheKey = `dashboard:kpis:${tenantId}:${period}`;
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached) as DashboardKPIs;
+    // Redis é opcional: se estiver fora do ar, seguimos calculando do banco
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached) as DashboardKPIs;
+    } catch {
+      // Redis indisponível — ignora o cache e calcula direto do Postgres
+    }
 
     const since = new Date();
     since.setHours(since.getHours() - (PERIOD_HOURS[period] ?? 24));
@@ -118,7 +123,11 @@ export class DashboardService {
       ],
     };
 
-    await this.redis.set(cacheKey, JSON.stringify(kpis), 'EX', 60);
+    try {
+      await this.redis.set(cacheKey, JSON.stringify(kpis), 'EX', 60);
+    } catch {
+      // Redis indisponível — segue sem cachear
+    }
     return kpis;
   }
 }
