@@ -122,6 +122,8 @@ export type Order = {
   shippingSubstatus: string | null
   logisticType: string | null
   trackingNumber: string | null
+  notDeliveredAt: string | null
+  returnedAt: string | null
   orderDate: string
   createdAt: string
 }

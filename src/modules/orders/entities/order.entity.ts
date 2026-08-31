@@ -83,6 +83,15 @@ export class Order {
   @Column({ nullable: true })
   trackingNumber: string;
 
+  // Datas do fluxo de devolução (vêm do status_history do envio)
+  @ApiProperty()
+  @Column({ nullable: true, type: 'timestamp' })
+  notDeliveredAt: Date;
+
+  @ApiProperty()
+  @Column({ nullable: true, type: 'timestamp' })
+  returnedAt: Date;
+
   @ApiProperty()
   @Column({ nullable: true, type: 'timestamp' })
   orderDate: Date;

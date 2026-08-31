@@ -735,14 +735,14 @@ export class MlSyncService {
     try {
       let offset = 0;
       const orders: MlOrder[] = [];
-      // daysBack=0 → sem filtro de data (todas as vendas). Teto de segurança 2000.
-      while (offset < 2000) {
+      // Últimos 30 dias para acompanhar a transição de envios/devoluções.
+      while (offset < 300) {
         let page: MlOrder[] = [];
         try {
           const ordersData = (await this.mlService.getOrders(
             accessToken,
             account.sellerId,
-            0,
+            30,
             offset,
           )) as { results: MlOrder[]; paging: any };
           page = ordersData?.results ?? [];
@@ -767,17 +767,22 @@ export class MlSyncService {
           where: { externalId, tenantId: account.tenantId },
         });
 
-        // Só busca o shipment quando é novo ou ainda não tem o tipo de
-        // logística (evita milhares de chamadas em re-syncs). O status de
-        // envio é atualizado pelo próprio pedido nos casos já conhecidos.
-        const needsShipment = !exists || !exists.logisticType;
+        // Busca o shipment quando é novo, sem tipo de logística, ou ainda
+        // está em movimento (pra rastrear entrega/devolução). Pedidos já
+        // finalizados (entregue/devolvido/cancelado) são pulados = re-sync rápido.
+        const done = ['delivered', 'returned', 'cancelled'].includes(
+          (exists?.shippingStatus || '').toLowerCase(),
+        );
+        const needsShipment = !exists || !exists.logisticType || !done;
         const ship = needsShipment
           ? await this.fetchShipmentInfo(accessToken, order)
           : {
               shippingStatus: order.shipping?.status ?? undefined,
-              shippingSubstatus: undefined as string | undefined,
+              shippingSubstatus: exists.shippingSubstatus,
               logisticType: exists.logisticType,
               trackingNumber: order.shipping?.tracking_number ?? undefined,
+              notDeliveredAt: exists.notDeliveredAt,
+              returnedAt: exists.returnedAt,
             };
 
         if (exists) {
@@ -789,6 +794,8 @@ export class MlSyncService {
               ship.shippingSubstatus ?? exists.shippingSubstatus,
             logisticType: ship.logisticType ?? exists.logisticType,
             trackingNumber: ship.trackingNumber ?? exists.trackingNumber,
+            notDeliveredAt: ship.notDeliveredAt ?? exists.notDeliveredAt,
+            returnedAt: ship.returnedAt ?? exists.returnedAt,
           });
           continue;
         }
@@ -816,6 +823,8 @@ export class MlSyncService {
           shippingSubstatus: ship.shippingSubstatus,
           logisticType: ship.logisticType,
           trackingNumber: ship.trackingNumber,
+          notDeliveredAt: ship.notDeliveredAt,
+          returnedAt: ship.returnedAt,
           orderDate: new Date(order.date_created),
         });
         synced++;
@@ -838,12 +847,16 @@ export class MlSyncService {
     shippingSubstatus?: string;
     logisticType?: string;
     trackingNumber?: string;
+    notDeliveredAt?: Date;
+    returnedAt?: Date;
   }> {
     const info: {
       shippingStatus?: string;
       shippingSubstatus?: string;
       logisticType?: string;
       trackingNumber?: string;
+      notDeliveredAt?: Date;
+      returnedAt?: Date;
     } = {
       shippingStatus: order.shipping?.status ?? undefined,
       logisticType: order.shipping?.logistic_type ?? undefined,
@@ -862,12 +875,28 @@ export class MlSyncService {
           logistic_type?: string;
           logistic?: { type?: string };
           tracking_number?: string;
+          status_history?: Record<string, string | null>;
         };
         info.shippingStatus = s?.status ?? info.shippingStatus;
         info.shippingSubstatus = s?.substatus ?? undefined;
         info.logisticType =
           s?.logistic_type ?? s?.logistic?.type ?? info.logisticType;
         info.trackingNumber = s?.tracking_number ?? info.trackingNumber;
+
+        const h = s?.status_history ?? {};
+        if (h.date_not_delivered)
+          info.notDeliveredAt = new Date(h.date_not_delivered);
+        if (h.date_returned) info.returnedAt = new Date(h.date_returned);
+
+        // Diagnóstico dos casos de não-entrega/devolução (pra mapear os substatus reais)
+        if (
+          s?.status === 'not_delivered' ||
+          (s?.substatus ?? '').includes('return')
+        ) {
+          this.logger.warn(
+            `[devolucao] shipment=${shipmentId} status=${s?.status} substatus=${s?.substatus} hist=${JSON.stringify(h).slice(0, 250)}`,
+          );
+        }
       } catch {
         /* sem shipment — usa o que veio no pedido */
       }

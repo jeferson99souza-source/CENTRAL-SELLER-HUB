@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Order } from '@/lib/api'
 
 const PAGE_SIZE = 12
@@ -26,7 +26,7 @@ function LogisticBadge({ type }: { type: string | null }) {
   )
 }
 
-type ColumnKey = 'a_enviar' | 'transito' | 'entregue' | 'devolucao'
+type ColumnKey = 'a_enviar' | 'transito' | 'entregue' | 'nao_entregue' | 'nao_devolvido'
 
 const COLUMNS: {
   key: ColumnKey
@@ -35,11 +35,41 @@ const COLUMNS: {
   color: string
   head: string
 }[] = [
-  { key: 'a_enviar',  label: 'A enviar',    icon: Package,     color: 'text-gray-600',   head: 'bg-gray-100' },
-  { key: 'transito',  label: 'Em trânsito', icon: Send,        color: 'text-blue-600',   head: 'bg-blue-50' },
-  { key: 'entregue',  label: 'Entregue',    icon: CheckCircle, color: 'text-green-600',  head: 'bg-green-50' },
-  { key: 'devolucao', label: 'Devolução',   icon: RotateCcw,   color: 'text-purple-600', head: 'bg-purple-50' },
+  { key: 'a_enviar',      label: 'A enviar',      icon: Package,       color: 'text-gray-600',   head: 'bg-gray-100' },
+  { key: 'transito',      label: 'Em trânsito',   icon: Send,          color: 'text-blue-600',   head: 'bg-blue-50' },
+  { key: 'entregue',      label: 'Entregue',      icon: CheckCircle,   color: 'text-green-600',  head: 'bg-green-50' },
+  { key: 'nao_entregue',  label: 'Não entregue',  icon: RotateCcw,     color: 'text-purple-600', head: 'bg-purple-50' },
+  { key: 'nao_devolvido', label: 'Não devolvido', icon: AlertTriangle, color: 'text-red-600',    head: 'bg-red-50' },
 ]
+
+// Devolvido (chegou de volta) ou ainda a caminho?
+function returnStatus(o: Order): 'devolvido' | 'a_caminho' {
+  const s = (o.shippingStatus || '').toLowerCase()
+  const sub = (o.shippingSubstatus || '').toLowerCase()
+  if (o.returnedAt || s === 'returned' || sub.includes('returned')) return 'devolvido'
+  return 'a_caminho'
+}
+
+function daysSince(iso: string | null): number | null {
+  if (!iso) return null
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+}
+
+function ReturnTag({ order }: { order: Order }) {
+  const st = returnStatus(order)
+  if (st === 'devolvido') {
+    return (
+      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white">
+        Devolvido
+      </span>
+    )
+  }
+  return (
+    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">
+      Devolução a caminho
+    </span>
+  )
+}
 
 const SHIPPING_LABEL: Record<string, string> = {
   pending:       'Pendente',
@@ -56,11 +86,21 @@ const SHIPPING_LABEL: Record<string, string> = {
 function bucket(o: Order): ColumnKey {
   const s = (o.shippingStatus || '').toLowerCase()
   const sub = (o.shippingSubstatus || '').toLowerCase()
-  if (sub.includes('return') || s === 'returning' || s === 'returned') return 'devolucao'
-  if (s === 'not_delivered' || s === 'cancelled') return 'devolucao'
+  const notDelivered =
+    s === 'not_delivered' || s === 'returning' || s === 'returned' ||
+    sub.includes('return') || sub.includes('not_delivered')
+
+  if (notDelivered) {
+    // Já devolvido → fica em "Não entregue" com a tag Devolvido
+    if (returnStatus(o) === 'devolvido') return 'nao_entregue'
+    // Não devolvido e passou de 7 dias → coluna de chamado
+    const d = daysSince(o.notDeliveredAt)
+    if (d !== null && d > 7) return 'nao_devolvido'
+    return 'nao_entregue'
+  }
   if (s === 'delivered') return 'entregue'
   if (s === 'shipped') return 'transito'
-  return 'a_enviar' // pending, handling, ready_to_ship, sem info
+  return 'a_enviar' // pending, handling, ready_to_ship, cancelled, sem info
 }
 
 function Pager({
@@ -127,7 +167,8 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
     a_enviar: 1,
     transito: 1,
     entregue: 1,
-    devolucao: 1,
+    nao_entregue: 1,
+    nao_devolvido: 1,
   })
 
   if (!orders.length) {
@@ -144,7 +185,8 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
     a_enviar: [],
     transito: [],
     entregue: [],
-    devolucao: [],
+    nao_entregue: [],
+    nao_devolvido: [],
   }
   for (const o of orders) grouped[bucket(o)].push(o)
 
@@ -189,6 +231,23 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
                         {o.itemQuantity ? `${o.itemQuantity}x ` : ''}{o.itemTitle}
                       </span>
                     </div>
+                  )}
+
+                  {(col.key === 'nao_entregue' || col.key === 'nao_devolvido') && (
+                    <div className="flex items-center justify-between gap-2">
+                      <ReturnTag order={o} />
+                      {daysSince(o.notDeliveredAt) !== null && (
+                        <span className="flex items-center gap-1 text-[10px] text-gray-400 shrink-0">
+                          <Clock className="w-3 h-3" />
+                          {daysSince(o.notDeliveredAt)}d
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {col.key === 'nao_devolvido' && (
+                    <p className="text-[10px] text-red-500 font-medium leading-snug">
+                      +7 dias sem devolução — abra um chamado no ML
+                    </p>
                   )}
 
                   <div className="flex items-center justify-between gap-2 pt-1">
