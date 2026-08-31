@@ -310,7 +310,10 @@ export class MlSyncService {
       });
       if (exists) {
         const updates: Record<string, unknown> = {};
-        if (!exists.buyerName && buyerName !== 'Cliente')
+        if (
+          (!exists.buyerName || exists.buyerName === 'Cliente') &&
+          buyerName !== 'Cliente'
+        )
           updates.buyerName = buyerName;
         if (!exists.itemTitle && itemTitle) updates.itemTitle = itemTitle;
         if (orderStatus) updates.orderStatus = orderStatus;
