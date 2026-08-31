@@ -746,6 +746,7 @@ export class MlSyncService {
 
       for (const order of orders) {
         const externalId = String(order.id);
+        const ship = await this.fetchShipmentInfo(accessToken, order);
         const exists = await this.orderRepo.findOne({
           where: { externalId, tenantId: account.tenantId },
         });
@@ -753,9 +754,11 @@ export class MlSyncService {
           // Atualiza status e envio se mudaram
           await this.orderRepo.update(exists.id, {
             status: order.status ?? exists.status,
-            shippingStatus: order.shipping?.status ?? exists.shippingStatus,
-            trackingNumber:
-              order.shipping?.tracking_number ?? exists.trackingNumber,
+            shippingStatus: ship.shippingStatus ?? exists.shippingStatus,
+            shippingSubstatus:
+              ship.shippingSubstatus ?? exists.shippingSubstatus,
+            logisticType: ship.logisticType ?? exists.logisticType,
+            trackingNumber: ship.trackingNumber ?? exists.trackingNumber,
           });
           continue;
         }
@@ -779,8 +782,10 @@ export class MlSyncService {
           totalAmount: order.total_amount ?? undefined,
           currency: order.currency_id ?? 'BRL',
           status: order.status ?? 'confirmed',
-          shippingStatus: order.shipping?.status ?? undefined,
-          trackingNumber: order.shipping?.tracking_number ?? undefined,
+          shippingStatus: ship.shippingStatus,
+          shippingSubstatus: ship.shippingSubstatus,
+          logisticType: ship.logisticType,
+          trackingNumber: ship.trackingNumber,
           orderDate: new Date(order.date_created),
         });
         synced++;
@@ -789,6 +794,55 @@ export class MlSyncService {
       this.logger.error(`Erro ao buscar pedidos: ${(err as Error).message}`);
     }
     return synced;
+  }
+
+  /**
+   * Busca os dados de envio de um pedido. O status básico vem no pedido, mas
+   * o logistic_type (FULL/FLEX/COLETA) e o substatus só vêm no shipment.
+   */
+  private async fetchShipmentInfo(
+    accessToken: string,
+    order: MlOrder,
+  ): Promise<{
+    shippingStatus?: string;
+    shippingSubstatus?: string;
+    logisticType?: string;
+    trackingNumber?: string;
+  }> {
+    const info: {
+      shippingStatus?: string;
+      shippingSubstatus?: string;
+      logisticType?: string;
+      trackingNumber?: string;
+    } = {
+      shippingStatus: order.shipping?.status ?? undefined,
+      logisticType: order.shipping?.logistic_type ?? undefined,
+      trackingNumber: order.shipping?.tracking_number ?? undefined,
+    };
+
+    const shipmentId = order.shipping?.id;
+    if (shipmentId) {
+      try {
+        const s = (await this.mlService.getShipment(
+          accessToken,
+          String(shipmentId),
+        )) as {
+          status?: string;
+          substatus?: string;
+          logistic_type?: string;
+          logistic?: { type?: string };
+          tracking_number?: string;
+        };
+        info.shippingStatus = s?.status ?? info.shippingStatus;
+        info.shippingSubstatus = s?.substatus ?? undefined;
+        info.logisticType =
+          s?.logistic_type ?? s?.logistic?.type ?? info.logisticType;
+        info.trackingNumber = s?.tracking_number ?? info.trackingNumber;
+      } catch {
+        /* sem shipment — usa o que veio no pedido */
+      }
+    }
+    return info;
   }
 
   // ─── Token ──────────────────────────────────────────────────────────────────

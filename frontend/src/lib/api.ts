@@ -119,6 +119,9 @@ export type Order = {
   currency: string
   status: string
   shippingStatus: string | null
+  shippingSubstatus: string | null
+  logisticType: string | null
+  trackingNumber: string | null
   orderDate: string
   createdAt: string
 }

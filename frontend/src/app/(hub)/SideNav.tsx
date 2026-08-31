@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, AlertCircle, MessageSquare, Package, HelpCircle, Building2 } from 'lucide-react'
+import { LayoutGrid, AlertCircle, MessageSquare, Package, HelpCircle, Building2, Truck } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
   { href: '/pedidos', icon: Package, label: 'Pedidos' },
+  { href: '/envios', icon: Truck, label: 'Envios' },
   { href: '/perguntas', icon: HelpCircle, label: 'Perguntas' },
   { href: '/reclamacoes', icon: AlertCircle, label: 'Reclamações' },
   { href: '/mensagens', icon: MessageSquare, label: 'Mensagens' },

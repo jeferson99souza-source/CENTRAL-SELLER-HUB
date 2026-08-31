@@ -71,6 +71,16 @@ export class Order {
 
   @ApiProperty()
   @Column({ nullable: true })
+  shippingSubstatus: string;
+
+  // Tipo de logística do ML: fulfillment (FULL), self_service (FLEX),
+  // cross_docking/drop_off (COLETA)
+  @ApiProperty()
+  @Column({ nullable: true })
+  logisticType: string;
+
+  @ApiProperty()
+  @Column({ nullable: true })
   trackingNumber: string;
 
   @ApiProperty()
