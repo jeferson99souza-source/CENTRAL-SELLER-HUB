@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import type { Order } from '@/lib/api'
 
 const PAGE_SIZE = 12
@@ -170,6 +170,7 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
     nao_entregue: 1,
     nao_devolvido: 1,
   })
+  const [showTitle, setShowTitle] = useState(true)
 
   if (!orders.length) {
     return (
@@ -191,8 +192,19 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
   for (const o of orders) grouped[bucket(o)].push(o)
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
-      {COLUMNS.map((col) => {
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowTitle((v) => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-[#DE7100] transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm"
+        >
+          {showTitle ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {showTitle ? 'Ocultar produto' : 'Mostrar produto'}
+        </button>
+      </div>
+
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {COLUMNS.map((col) => {
         const all = grouped[col.key]
         const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE))
         const page = Math.min(pages[col.key], totalPages)
@@ -224,11 +236,19 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
                     <LogisticBadge type={o.logisticType} />
                   </div>
 
-                  {o.itemTitle && (
+                  {showTitle && o.itemTitle && (
                     <div className="flex items-start gap-1.5">
                       <Package className="w-3.5 h-3.5 text-orange-400 shrink-0 mt-0.5" />
                       <span className="text-xs text-gray-600 leading-snug line-clamp-2">
                         {o.itemQuantity ? `${o.itemQuantity}x ` : ''}{o.itemTitle}
+                      </span>
+                    </div>
+                  )}
+                  {!showTitle && o.itemTitle && (
+                    <div className="flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                      <span className="text-xs text-gray-400 italic">
+                        {o.itemQuantity ? `${o.itemQuantity}x ` : ''}produto oculto
                       </span>
                     </div>
                   )}
@@ -274,6 +294,7 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
