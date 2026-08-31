@@ -734,25 +734,28 @@ export class MlSyncService {
     let synced = 0;
     try {
       let offset = 0;
-      let hasMore = true;
       const orders: MlOrder[] = [];
-      while (hasMore && offset < 500) {
-        const ordersData = (await this.mlService.getOrders(
-          accessToken,
-          account.sellerId,
-          120,
-          offset,
-        )) as { results: MlOrder[]; paging: any };
-        const page = ordersData?.results ?? [];
-        orders.push(...page);
-        if (
-          page.length < 50 ||
-          offset + page.length >= (ordersData?.paging?.total ?? 0)
-        ) {
-          hasMore = false;
-        } else {
-          offset += 50;
+      // daysBack=0 → sem filtro de data (todas as vendas). Teto de segurança 2000.
+      while (offset < 2000) {
+        let page: MlOrder[] = [];
+        try {
+          const ordersData = (await this.mlService.getOrders(
+            accessToken,
+            account.sellerId,
+            0,
+            offset,
+          )) as { results: MlOrder[]; paging: any };
+          page = ordersData?.results ?? [];
+        } catch (pageErr) {
+          this.logger.warn(
+            `Pedidos: paginação parou no offset ${offset}: ${(pageErr as Error).message}`,
+          );
+          break;
         }
+        if (!page.length) break;
+        orders.push(...page);
+        if (page.length < 50) break;
+        offset += 50;
       }
       this.logger.log(
         `Pedidos: ${orders.length} para seller=${account.sellerId}`,

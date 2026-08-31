@@ -403,20 +403,23 @@ export class MercadoLivreService {
     daysBack = 90,
     offset = 0,
   ): Promise<unknown> {
-    const now = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - daysBack);
-
-    // Usamos date_last_updated para trazer pedidos antigos que tiveram mensagens/alterações recentes
-    const dateFrom = from.toISOString().split('.')[0] + '.000-00:00';
-    const dateTo = now.toISOString().split('.')[0] + '.000-00:00';
+    // daysBack <= 0 → sem filtro de data (todas as vendas)
+    let dateFilter = '';
+    if (daysBack > 0) {
+      const now = new Date();
+      const from = new Date();
+      from.setDate(from.getDate() - daysBack);
+      const dateFrom = from.toISOString().split('.')[0] + '.000-00:00';
+      const dateTo = now.toISOString().split('.')[0] + '.000-00:00';
+      dateFilter = `&order.date_last_updated.from=${encodeURIComponent(dateFrom)}&order.date_last_updated.to=${encodeURIComponent(dateTo)}`;
+    }
 
     this.logger.log(
-      `Buscando pedidos seller=${sellerId} offset=${offset} limit=50 de ${dateFrom} ate ${dateTo}`,
+      `Buscando pedidos seller=${sellerId} offset=${offset} limit=50 ${daysBack > 0 ? `(${daysBack}d)` : '(todas)'}`,
     );
 
     return this.mlGet(
-      `/orders/search?seller=${sellerId}&sort=date_desc&offset=${offset}&limit=50&order.date_last_updated.from=${encodeURIComponent(dateFrom)}&order.date_last_updated.to=${encodeURIComponent(dateTo)}`,
+      `/orders/search?seller=${sellerId}&sort=date_desc&offset=${offset}&limit=50${dateFilter}`,
       accessToken,
     );
   }
