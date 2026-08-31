@@ -230,11 +230,17 @@ export class MlSyncService {
           )) as { messages: MlMessage[] };
           const mlMessages = messagesData?.messages ?? [];
           if (!mlMessages.length) continue;
+          // Descobre o pedido da conversa (comprador/produto) — usa o pedido
+          // recente se já temos; senão busca pelo pack no ML.
+          let order = orderByPack.get(packId);
+          if (!order) {
+            order = await this.resolveOrderFromPack(accessToken, packId);
+          }
           synced += await this.savePackMessages(
             account,
             packId,
             mlMessages,
-            orderByPack.get(packId),
+            order,
           );
         } catch (packErr) {
           this.logger.warn(
@@ -342,6 +348,41 @@ export class MlSyncService {
       saved++;
     }
     return saved;
+  }
+
+  /**
+   * Descobre o pedido de uma conversa a partir do pack_id.
+   * Tenta o pack como order_id (pedidos de item único) e, se falhar,
+   * busca o pack para pegar o primeiro pedido que o compõe.
+   */
+  private async resolveOrderFromPack(
+    accessToken: string,
+    packId: string,
+  ): Promise<MlOrder | undefined> {
+    try {
+      const direct = (await this.mlService.getOrderById(
+        accessToken,
+        packId,
+      )) as MlOrder;
+      if (direct?.id) return direct;
+    } catch {
+      /* não era um order_id — tenta como pack abaixo */
+    }
+    try {
+      const pack = (await this.mlService.getPack(accessToken, packId)) as {
+        orders?: { id: number }[];
+      };
+      const orderId = pack?.orders?.[0]?.id;
+      if (orderId) {
+        return (await this.mlService.getOrderById(
+          accessToken,
+          String(orderId),
+        )) as MlOrder;
+      }
+    } catch {
+      /* segue sem enriquecer */
+    }
+    return undefined;
   }
 
   // ─── Reclamações ────────────────────────────────────────────────────────────

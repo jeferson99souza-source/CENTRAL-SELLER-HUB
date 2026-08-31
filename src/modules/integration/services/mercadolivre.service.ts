@@ -296,6 +296,15 @@ export class MercadoLivreService {
     return this.mlGet(`/orders/${orderId}`, accessToken);
   }
 
+  /**
+   * Busca os dados de um pack (carrinho) — inclui a lista de pedidos (orders)
+   * que o compõem. Usado para descobrir o pedido de uma conversa.
+   */
+  async getPack(accessToken: string, packId: string): Promise<unknown> {
+    this.logger.log(`Buscando pack ${packId}`);
+    return this.mlGet(`/packs/${packId}`, accessToken);
+  }
+
   async getItem(accessToken: string, itemId: string): Promise<unknown> {
     return this.mlGet(`/items/${itemId}`, accessToken);
   }
