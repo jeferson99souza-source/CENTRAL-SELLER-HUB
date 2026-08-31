@@ -28,7 +28,12 @@ interface MlOrder {
     quantity: number;
     unit_price: number;
   }[];
-  shipping?: { id: number; status: string; tracking_number?: string };
+  shipping?: {
+    id: number;
+    status: string;
+    tracking_number?: string;
+    logistic_type?: string;
+  };
 }
 
 interface MlMessage {
@@ -280,6 +285,7 @@ export class MlSyncService {
     const orderId = order ? String(order.id) : undefined;
     const orderStatus = order?.status ?? undefined;
     const shippingStatus = order?.shipping?.status ?? undefined;
+    const logisticType = order?.shipping?.logistic_type ?? undefined;
 
     for (const msg of mlMessages) {
       const externalId = String(msg.id);
@@ -318,6 +324,7 @@ export class MlSyncService {
         if (!exists.itemTitle && itemTitle) updates.itemTitle = itemTitle;
         if (orderStatus) updates.orderStatus = orderStatus;
         if (shippingStatus) updates.shippingStatus = shippingStatus;
+        if (logisticType) updates.logisticType = logisticType;
         if (!exists.content && content && sender === 'cliente') {
           updates.content = content;
           updates.status = 'pending';
@@ -344,6 +351,7 @@ export class MlSyncService {
         content,
         orderStatus,
         shippingStatus,
+        logisticType,
         status:
           sender === 'vendedor' || isAutoNotification ? 'replied' : 'pending',
         slaDeadline,

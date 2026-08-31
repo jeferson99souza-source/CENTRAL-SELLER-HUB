@@ -80,6 +80,7 @@ export type Message = {
   itemTitle: string | null
   orderStatus: string | null
   shippingStatus: string | null
+  logisticType: string | null
   sender: 'cliente' | 'vendedor' | 'bot'
   content: string
   status: 'pending' | 'read' | 'replied'

@@ -43,6 +43,11 @@ export class Message {
   @Column({ name: 'shipping_status', nullable: true })
   shippingStatus: string;
 
+  // Tipo de logística do ML: fulfillment (FULL), self_service (FLEX),
+  // cross_docking/drop_off (COLETA)
+  @Column({ name: 'logistic_type', nullable: true })
+  logisticType: string;
+
   @Column({ type: 'varchar' })
   sender: MessageSender;
 

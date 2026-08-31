@@ -40,6 +40,26 @@ function ShippingBadge({ shippingStatus }: { shippingStatus: string | null }) {
   )
 }
 
+// Tipo de logística do ML → tag FULL / FLEX / COLETA
+const LOGISTIC_MAP: Record<string, { label: string; color: string }> = {
+  fulfillment:   { label: 'FULL',   color: 'bg-green-600 text-white' },
+  self_service:  { label: 'FLEX',   color: 'bg-blue-600 text-white' },
+  cross_docking: { label: 'COLETA', color: 'bg-amber-500 text-white' },
+  drop_off:      { label: 'COLETA', color: 'bg-amber-500 text-white' },
+  xd_drop_off:   { label: 'COLETA', color: 'bg-amber-500 text-white' },
+}
+
+export function LogisticBadge({ logisticType }: { logisticType: string | null }) {
+  if (!logisticType) return null
+  const info = LOGISTIC_MAP[logisticType]
+  if (!info) return null
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${info.color}`}>
+      {info.label}
+    </span>
+  )
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
@@ -75,6 +95,7 @@ export default function MessagesLayout({ messages }: Props) {
                 <span className="text-sm font-bold text-gray-900 truncate">
                   {m.buyerName || 'Cliente'}
                 </span>
+                <LogisticBadge logisticType={m.logisticType} />
                 <ShippingBadge shippingStatus={m.shippingStatus} />
               </div>
               <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${STATUS_COLOR[m.status]}`}>
