@@ -296,9 +296,18 @@ export class MlSyncService {
         )) as { logistic_type?: string; logistic?: { type?: string } };
         logisticType =
           shipment?.logistic_type ?? shipment?.logistic?.type ?? undefined;
-      } catch {
-        /* segue sem tipo de logística */
+        this.logger.warn(
+          `[logistic] pack=${packId} shipment=${order.shipping.id} type=${logisticType} raw=${JSON.stringify(shipment).slice(0, 250)}`,
+        );
+      } catch (shipErr) {
+        this.logger.warn(
+          `[logistic] pack=${packId} shipment=${order.shipping.id} ERRO: ${(shipErr as Error).message}`,
+        );
       }
+    } else {
+      this.logger.warn(
+        `[logistic] pack=${packId} sem shipping.id (order=${order ? 'ok' : 'nulo'}) logisticFromOrder=${logisticType}`,
+      );
     }
 
     for (const msg of mlMessages) {
