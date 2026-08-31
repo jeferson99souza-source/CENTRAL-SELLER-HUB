@@ -733,13 +733,27 @@ export class MlSyncService {
   ): Promise<number> {
     let synced = 0;
     try {
-      const ordersData = (await this.mlService.getOrders(
-        accessToken,
-        account.sellerId,
-        30,
-        0,
-      )) as { results: MlOrder[]; paging: any };
-      const orders = ordersData?.results ?? [];
+      let offset = 0;
+      let hasMore = true;
+      const orders: MlOrder[] = [];
+      while (hasMore && offset < 200) {
+        const ordersData = (await this.mlService.getOrders(
+          accessToken,
+          account.sellerId,
+          60,
+          offset,
+        )) as { results: MlOrder[]; paging: any };
+        const page = ordersData?.results ?? [];
+        orders.push(...page);
+        if (
+          page.length < 50 ||
+          offset + page.length >= (ordersData?.paging?.total ?? 0)
+        ) {
+          hasMore = false;
+        } else {
+          offset += 50;
+        }
+      }
       this.logger.log(
         `Pedidos: ${orders.length} para seller=${account.sellerId}`,
       );
