@@ -182,6 +182,19 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
     )
   }
 
+  // Mostra os últimos 30 dias (mais os que ainda estão em fluxo de devolução)
+  const cutoff = Date.now() - 30 * 86400000
+  const visible = orders.filter((o) => {
+    const d = o.orderDate ? new Date(o.orderDate).getTime() : 0
+    if (d >= cutoff) return true
+    const s = (o.shippingStatus || '').toLowerCase()
+    const sub = (o.shippingSubstatus || '').toLowerCase()
+    return (
+      s === 'not_delivered' || s === 'returning' || s === 'returned' ||
+      sub.includes('return')
+    )
+  })
+
   const grouped: Record<ColumnKey, Order[]> = {
     a_enviar: [],
     transito: [],
@@ -189,7 +202,7 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
     nao_entregue: [],
     nao_devolvido: [],
   }
-  for (const o of orders) grouped[bucket(o)].push(o)
+  for (const o of visible) grouped[bucket(o)].push(o)
 
   return (
     <div className="space-y-3">
