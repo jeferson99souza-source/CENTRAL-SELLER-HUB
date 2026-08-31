@@ -736,11 +736,11 @@ export class MlSyncService {
       let offset = 0;
       let hasMore = true;
       const orders: MlOrder[] = [];
-      while (hasMore && offset < 200) {
+      while (hasMore && offset < 500) {
         const ordersData = (await this.mlService.getOrders(
           accessToken,
           account.sellerId,
-          60,
+          120,
           offset,
         )) as { results: MlOrder[]; paging: any };
         const page = ordersData?.results ?? [];
@@ -760,10 +760,23 @@ export class MlSyncService {
 
       for (const order of orders) {
         const externalId = String(order.id);
-        const ship = await this.fetchShipmentInfo(accessToken, order);
         const exists = await this.orderRepo.findOne({
           where: { externalId, tenantId: account.tenantId },
         });
+
+        // Só busca o shipment quando é novo ou ainda não tem o tipo de
+        // logística (evita milhares de chamadas em re-syncs). O status de
+        // envio é atualizado pelo próprio pedido nos casos já conhecidos.
+        const needsShipment = !exists || !exists.logisticType;
+        const ship = needsShipment
+          ? await this.fetchShipmentInfo(accessToken, order)
+          : {
+              shippingStatus: order.shipping?.status ?? undefined,
+              shippingSubstatus: undefined as string | undefined,
+              logisticType: exists.logisticType,
+              trackingNumber: order.shipping?.tracking_number ?? undefined,
+            };
+
         if (exists) {
           // Atualiza status e envio se mudaram
           await this.orderRepo.update(exists.id, {

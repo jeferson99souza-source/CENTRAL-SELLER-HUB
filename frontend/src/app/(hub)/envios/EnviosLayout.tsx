@@ -1,7 +1,10 @@
 'use client'
 
-import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
+import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Order } from '@/lib/api'
+
+const PAGE_SIZE = 12
 
 // Tipo de logística do ML → tag FULL / FLEX / COLETA
 const LOGISTIC_MAP: Record<string, { label: string; color: string }> = {
@@ -60,7 +63,73 @@ function bucket(o: Order): ColumnKey {
   return 'a_enviar' // pending, handling, ready_to_ship, sem info
 }
 
+function Pager({
+  page,
+  total,
+  onChange,
+  color,
+}: {
+  page: number
+  total: number
+  onChange: (p: number) => void
+  color: string
+}) {
+  if (total <= 1) return null
+  // Janela de páginas ao redor da atual
+  const nums: number[] = []
+  const start = Math.max(1, page - 1)
+  const end = Math.min(total, start + 2)
+  for (let i = start; i <= end; i++) nums.push(i)
+
+  return (
+    <div className="flex items-center justify-center gap-1 pt-3">
+      <button
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1}
+        className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      {start > 1 && (
+        <>
+          <button onClick={() => onChange(1)} className="text-xs w-6 h-6 rounded-lg text-gray-500 hover:bg-gray-100">1</button>
+          {start > 2 && <span className="text-xs text-gray-300">…</span>}
+        </>
+      )}
+      {nums.map((n) => (
+        <button
+          key={n}
+          onClick={() => onChange(n)}
+          className={`text-xs w-6 h-6 rounded-lg font-semibold ${n === page ? `${color} bg-gray-100` : 'text-gray-500 hover:bg-gray-100'}`}
+        >
+          {n}
+        </button>
+      ))}
+      {end < total && (
+        <>
+          {end < total - 1 && <span className="text-xs text-gray-300">…</span>}
+          <button onClick={() => onChange(total)} className="text-xs w-6 h-6 rounded-lg text-gray-500 hover:bg-gray-100">{total}</button>
+        </>
+      )}
+      <button
+        onClick={() => onChange(page + 1)}
+        disabled={page >= total}
+        className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 disabled:opacity-30"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  )
+}
+
 export default function EnviosLayout({ orders }: { orders: Order[] }) {
+  const [pages, setPages] = useState<Record<ColumnKey, number>>({
+    a_enviar: 1,
+    transito: 1,
+    entregue: 1,
+    devolucao: 1,
+  })
+
   if (!orders.length) {
     return (
       <div className="text-center py-16 text-gray-400">
@@ -82,7 +151,10 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
       {COLUMNS.map((col) => {
-        const items = grouped[col.key]
+        const all = grouped[col.key]
+        const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE))
+        const page = Math.min(pages[col.key], totalPages)
+        const items = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
         const Icon = col.icon
         return (
           <div key={col.key} className="w-72 shrink-0">
@@ -91,11 +163,11 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
                 <Icon className="w-4 h-4" />
                 {col.label}
               </div>
-              <span className={`text-xs font-bold ${col.color}`}>{items.length}</span>
+              <span className={`text-xs font-bold ${col.color}`}>{all.length}</span>
             </div>
 
             <div className="space-y-3">
-              {items.length === 0 && (
+              {all.length === 0 && (
                 <p className="text-xs text-gray-300 text-center py-6">Vazio</p>
               )}
               {items.map((o) => (
@@ -133,6 +205,13 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
                 </div>
               ))}
             </div>
+
+            <Pager
+              page={page}
+              total={totalPages}
+              color={col.color}
+              onChange={(p) => setPages((prev) => ({ ...prev, [col.key]: p }))}
+            />
           </div>
         )
       })}
