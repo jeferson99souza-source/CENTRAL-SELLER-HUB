@@ -160,20 +160,30 @@ export class MlSyncService {
   ): Promise<number> {
     let synced = 0;
     try {
-      // Diagnóstico: lista conversas com mensagens não lidas (não sofrem o
-      // bloqueio de Full — se há mensagem para ler, o ML retorna aqui)
+      // 1) Lista as conversas que REALMENTE têm mensagem (endpoint de não
+      //    lidas). Esses packs não sofrem o bloqueio de Full.
+      const unreadPackIds = new Set<string>();
       try {
-        await this.mlService.getUnreadMessages(accessToken);
+        const unread = (await this.mlService.getUnreadMessages(
+          accessToken,
+        )) as { results?: { resource?: string; count?: number }[] };
+        for (const r of unread?.results ?? []) {
+          const match = /\/packs\/(\d+)\//.exec(r?.resource ?? '');
+          if (match) unreadPackIds.add(match[1]);
+        }
       } catch (unreadErr) {
         this.logger.warn(
           `Falha ao buscar não lidas: ${(unreadErr as Error).message}`,
         );
       }
+      this.logger.log(
+        `Mensagens: ${unreadPackIds.size} conversas com mensagem (não lidas) para seller=${account.sellerId}`,
+      );
 
+      // 2) Busca pedidos recentes só para enriquecer nome do comprador/produto.
       let offset = 0;
       let hasMore = true;
       const allOrders: MlOrder[] = [];
-
       while (hasMore && offset < 200) {
         const ordersData = (await this.mlService.getOrders(
           accessToken,
@@ -193,112 +203,42 @@ export class MlSyncService {
         }
       }
 
+      // Mapa pack_id -> pedido (usa pack_id e o próprio order_id como chave)
+      const orderByPack = new Map<string, MlOrder>();
+      for (const order of allOrders) {
+        if (order.pack_id) orderByPack.set(String(order.pack_id), order);
+        orderByPack.set(String(order.id), order);
+      }
+
+      // 3) Packs a processar: os não lidos primeiro (têm mensagem garantida),
+      //    depois os dos pedidos recentes (cobre conversas já lidas).
+      const packsToProcess = new Set<string>(unreadPackIds);
+      for (const order of allOrders) {
+        packsToProcess.add(String(order.pack_id ?? order.id));
+      }
+
       this.logger.log(
-        `Mensagens: ${allOrders.length} pedidos para seller=${account.sellerId}`,
+        `Mensagens: processando ${packsToProcess.size} packs (${allOrders.length} pedidos) para seller=${account.sellerId}`,
       );
 
-      for (const order of allOrders) {
+      for (const packId of packsToProcess) {
         try {
-          // No ML, pedidos de item único vêm com pack_id null, mas ainda têm
-          // conversa pós-venda acessível usando o próprio order_id como pack.
-          const packId = order.pack_id ?? order.id;
           const messagesData = (await this.mlService.getMessages(
             accessToken,
-            String(packId),
+            packId,
             account.sellerId,
           )) as { messages: MlMessage[] };
           const mlMessages = messagesData?.messages ?? [];
-          mlMessages.sort(
-            (a, b) =>
-              new Date(a.message_date.received).getTime() -
-              new Date(b.message_date.received).getTime(),
+          if (!mlMessages.length) continue;
+          synced += await this.savePackMessages(
+            account,
+            packId,
+            mlMessages,
+            orderByPack.get(packId),
           );
-
-          const sellerId = Number(account.sellerId);
-          const buyerFullName =
-            `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
-          const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';
-          const itemTitle = order.order_items?.[0]?.item?.title ?? undefined;
-
-          for (const msg of mlMessages) {
-            const externalId = String(msg.id);
-            const sender =
-              msg.from?.user_id === sellerId ? 'vendedor' : 'cliente';
-            const buyerId = String(
-              msg.from?.user_id === sellerId
-                ? msg.to?.user_id
-                : msg.from?.user_id,
-            );
-            const content = (
-              typeof msg.text === 'string'
-                ? msg.text
-                : ((msg.text as any)?.plain ?? '')
-            ).trim();
-
-            if (sender === 'vendedor') {
-              await this.messageRepo.update(
-                {
-                  packId: String(packId),
-                  tenantId: account.tenantId,
-                  sender: 'cliente',
-                  status: 'pending',
-                },
-                { status: 'replied' },
-              );
-            }
-
-            const orderStatus = order.status ?? undefined;
-            const shippingStatus = order.shipping?.status ?? undefined;
-
-            const exists = await this.messageRepo.findOne({
-              where: { externalId, tenantId: account.tenantId },
-            });
-            if (exists) {
-              const updates: Record<string, unknown> = {};
-              if (!exists.buyerName) updates.buyerName = buyerName;
-              if (!exists.itemTitle) updates.itemTitle = itemTitle;
-              // Sempre atualiza status de pedido/envio (pode ter mudado)
-              updates.orderStatus = orderStatus;
-              updates.shippingStatus = shippingStatus;
-              // Corrige mensagens salvas com conteúdo vazio por bug antigo de parsing
-              if (!exists.content && content && sender === 'cliente') {
-                updates.content = content;
-                updates.status = 'pending';
-              }
-              await this.messageRepo.update(exists.id, updates);
-              continue;
-            }
-
-            const isAutoNotification = sender === 'cliente' && content === '';
-            const slaDeadline = new Date(
-              msg.message_date?.received ?? Date.now(),
-            );
-            slaDeadline.setHours(slaDeadline.getHours() + 48);
-
-            await this.messageRepo.save({
-              tenantId: account.tenantId,
-              marketplaceAccountId: account.id,
-              orderId: String(order.id),
-              packId: String(packId),
-              externalId,
-              buyerId,
-              buyerName,
-              itemTitle,
-              sender,
-              content,
-              orderStatus,
-              shippingStatus,
-              status:
-                sender === 'vendedor' || isAutoNotification
-                  ? 'replied'
-                  : 'pending',
-              slaDeadline,
-            });
-            synced++;
-          }
-        } catch (orderErr) {
+        } catch (packErr) {
           this.logger.warn(
-            `Mensagens pedido=${order.id} ignoradas: ${(orderErr as Error).message}`,
+            `Mensagens pack=${packId} ignoradas: ${(packErr as Error).message}`,
           );
         }
       }
@@ -306,6 +246,102 @@ export class MlSyncService {
       this.logger.error(`Erro ao buscar mensagens: ${(err as Error).message}`);
     }
     return synced;
+  }
+
+  /**
+   * Salva as mensagens de um pack. O pedido (order) é opcional — quando
+   * disponível, enriquece com nome do comprador e título do produto.
+   */
+  private async savePackMessages(
+    account: MarketplaceAccount,
+    packId: string,
+    mlMessages: MlMessage[],
+    order?: MlOrder,
+  ): Promise<number> {
+    let saved = 0;
+    mlMessages.sort(
+      (a, b) =>
+        new Date(a.message_date.received).getTime() -
+        new Date(b.message_date.received).getTime(),
+    );
+
+    const sellerId = Number(account.sellerId);
+    const buyerFullName = order
+      ? `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim()
+      : '';
+    const buyerName = order?.buyer?.nickname || buyerFullName || 'Cliente';
+    const itemTitle = order?.order_items?.[0]?.item?.title ?? undefined;
+    const orderId = order ? String(order.id) : undefined;
+    const orderStatus = order?.status ?? undefined;
+    const shippingStatus = order?.shipping?.status ?? undefined;
+
+    for (const msg of mlMessages) {
+      const externalId = String(msg.id);
+      const sender = msg.from?.user_id === sellerId ? 'vendedor' : 'cliente';
+      const buyerId = String(
+        msg.from?.user_id === sellerId ? msg.to?.user_id : msg.from?.user_id,
+      );
+      const content = (
+        typeof msg.text === 'string'
+          ? msg.text
+          : ((msg.text as any)?.plain ?? '')
+      ).trim();
+
+      if (sender === 'vendedor') {
+        await this.messageRepo.update(
+          {
+            packId,
+            tenantId: account.tenantId,
+            sender: 'cliente',
+            status: 'pending',
+          },
+          { status: 'replied' },
+        );
+      }
+
+      const exists = await this.messageRepo.findOne({
+        where: { externalId, tenantId: account.tenantId },
+      });
+      if (exists) {
+        const updates: Record<string, unknown> = {};
+        if (!exists.buyerName && buyerName !== 'Cliente')
+          updates.buyerName = buyerName;
+        if (!exists.itemTitle && itemTitle) updates.itemTitle = itemTitle;
+        if (orderStatus) updates.orderStatus = orderStatus;
+        if (shippingStatus) updates.shippingStatus = shippingStatus;
+        if (!exists.content && content && sender === 'cliente') {
+          updates.content = content;
+          updates.status = 'pending';
+        }
+        if (Object.keys(updates).length)
+          await this.messageRepo.update(exists.id, updates);
+        continue;
+      }
+
+      const isAutoNotification = sender === 'cliente' && content === '';
+      const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
+      slaDeadline.setHours(slaDeadline.getHours() + 48);
+
+      await this.messageRepo.save({
+        tenantId: account.tenantId,
+        marketplaceAccountId: account.id,
+        orderId,
+        packId,
+        externalId,
+        buyerId,
+        buyerName,
+        itemTitle,
+        sender,
+        content,
+        orderStatus,
+        shippingStatus,
+        status:
+          sender === 'vendedor' || isAutoNotification ? 'replied' : 'pending',
+        slaDeadline,
+      });
+      saved++;
+    }
+    return saved;
   }
 
   // ─── Reclamações ────────────────────────────────────────────────────────────
