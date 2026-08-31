@@ -197,19 +197,34 @@ export class IntegrationController {
           nickname?: string;
           error?: string;
         };
+        let unread: { count: number | null; raw?: string } = { count: null };
         try {
-          let accessToken: string;
-          if (isExpired) {
-            accessToken = await this.mlService.refreshAccountToken(account);
-          } else {
-            accessToken = this.encryption.decrypt(account.accessTokenEnc);
-          }
+          const accessToken = isExpired
+            ? await this.mlService.refreshAccountToken(account)
+            : this.encryption.decrypt(account.accessTokenEnc);
           const profile = await this.mlService.testConnection(accessToken);
           tokenTest = {
             ok: true,
             sellerId: String(profile.id),
             nickname: profile.nickname,
           };
+          // Verifica quantas conversas com mensagem o ML realmente libera
+          try {
+            const u = (await this.mlService.getUnreadMessages(
+              accessToken,
+            )) as any;
+            const count =
+              u?.as_seller?.count ??
+              u?.count ??
+              u?.total ??
+              (Array.isArray(u?.results) ? u.results.length : null);
+            unread = {
+              count: typeof count === 'number' ? count : null,
+              raw: JSON.stringify(u).slice(0, 300),
+            };
+          } catch (ue) {
+            unread = { count: null, raw: `erro: ${(ue as Error).message}` };
+          }
         } catch (err) {
           tokenTest = { ok: false, error: (err as Error).message };
         }
@@ -224,6 +239,7 @@ export class IntegrationController {
           tokenExpired: isExpired,
           minutesUntilExpiry,
           tokenTest,
+          unread,
         };
       }),
     );

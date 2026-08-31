@@ -17,6 +17,7 @@ type DiagnoseResult = {
     minutesUntilExpiry: number | null
     lastSyncAt: string | null
     tokenTest: { ok: boolean; nickname?: string; sellerId?: string; error?: string }
+    unread?: { count: number | null; raw?: string }
   }[]
 }
 
@@ -111,6 +112,18 @@ export default function DiagnoseButton() {
                       )}
                       {!acc.lastSyncAt && (
                         <p className="text-orange-600">⚠️ Nenhum sync ainda — clique em "Puxar Dados do ML"</p>
+                      )}
+                      {acc.unread && (
+                        <p>
+                          📨 Mensagens que o ML libera:{' '}
+                          <strong>{acc.unread.count ?? '—'}</strong>
+                          {acc.unread.count === 0 && ' (nenhuma acessível via API)'}
+                        </p>
+                      )}
+                      {acc.unread?.raw && (
+                        <p className="text-[10px] text-gray-400 break-all">
+                          resposta ML: {acc.unread.raw}
+                        </p>
                       )}
                     </>
                   ) : (
