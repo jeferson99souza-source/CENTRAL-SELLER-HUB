@@ -12,12 +12,20 @@ export interface OAuthState {
 }
 
 /**
- * Gerencia o estado PKCE do OAuth armazenado no Redis.
- * O `state` é uma string aleatória usada como chave no Redis.
- * Após o callback, o estado é consumido (deletado) para evitar replay attacks.
+ * Gerencia o estado PKCE do OAuth.
+ * Usa o Redis quando disponível, mas mantém um fallback em memória para que
+ * o fluxo de conexão continue funcionando mesmo se o Redis estiver fora do ar
+ * (o mesmo processo trata o buildAuthUrl e o callback — 1 réplica).
+ * O `state` é uma string aleatória usada como chave. Após o callback, o estado
+ * é consumido (deletado) para evitar replay attacks.
  */
 @Injectable()
 export class OAuthStateService {
+  private readonly memStore = new Map<
+    string,
+    { data: OAuthState; expiresAt: number }
+  >();
+
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   /**
@@ -37,12 +45,19 @@ export class OAuthStateService {
   }
 
   async saveState(state: string, data: OAuthState): Promise<void> {
-    await this.redis.set(
-      `oauth:state:${state}`,
-      JSON.stringify(data),
-      'EX',
-      STATE_TTL_SECONDS,
-    );
+    const key = `oauth:state:${state}`;
+    // Sempre guarda na memória como garantia
+    this.memStore.set(key, {
+      data,
+      expiresAt: Date.now() + STATE_TTL_SECONDS * 1000,
+    });
+    this.pruneMemStore();
+    // Tenta o Redis também, mas não quebra se estiver fora
+    try {
+      await this.redis.set(key, JSON.stringify(data), 'EX', STATE_TTL_SECONDS);
+    } catch {
+      // Redis indisponível — o fallback em memória cobre o fluxo
+    }
   }
 
   /**
@@ -51,9 +66,30 @@ export class OAuthStateService {
    */
   async consumeState(state: string): Promise<OAuthState | null> {
     const key = `oauth:state:${state}`;
-    const data = await this.redis.get(key);
-    if (!data) return null;
-    await this.redis.del(key);
-    return JSON.parse(data) as OAuthState;
+
+    // 1) Tenta a memória primeiro
+    const mem = this.memStore.get(key);
+    if (mem) {
+      this.memStore.delete(key);
+      if (mem.expiresAt > Date.now()) return mem.data;
+    }
+
+    // 2) Tenta o Redis (caso o processo que salvou tenha sido outro)
+    try {
+      const data = await this.redis.get(key);
+      if (!data) return null;
+      await this.redis.del(key);
+      return JSON.parse(data) as OAuthState;
+    } catch {
+      // Redis fora e não estava na memória — não há como validar
+      return null;
+    }
+  }
+
+  private pruneMemStore(): void {
+    const now = Date.now();
+    for (const [key, value] of this.memStore) {
+      if (value.expiresAt <= now) this.memStore.delete(key);
+    }
   }
 }
