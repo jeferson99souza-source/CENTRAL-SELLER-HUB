@@ -121,16 +121,18 @@ export class MlSyncService {
           `Token OK para seller=${account.sellerId}. Iniciando sync...`,
         );
 
-        const [messages, complaints, questions, orders] = await Promise.all([
-          this.syncMessages(account, accessToken),
-          this.syncComplaints(account, accessToken),
-          this.syncQuestions(account, accessToken),
-          this.syncOrders(account, accessToken),
-        ]);
+        const [messages, complaints, questions, orders, returns] =
+          await Promise.all([
+            this.syncMessages(account, accessToken),
+            this.syncComplaints(account, accessToken),
+            this.syncQuestions(account, accessToken),
+            this.syncOrders(account, accessToken),
+            this.syncReturns(account, accessToken),
+          ]);
         totalMessages += messages;
         totalComplaints += complaints;
         totalQuestions += questions;
-        totalOrders += orders;
+        totalOrders += orders + returns;
 
         await this.accountRepo.update(account.id, { lastSyncAt: new Date() });
         this.logger.log(
@@ -762,75 +764,128 @@ export class MlSyncService {
       );
 
       for (const order of orders) {
-        const externalId = String(order.id);
-        const exists = await this.orderRepo.findOne({
-          where: { externalId, tenantId: account.tenantId },
-        });
-
-        // Busca o shipment quando é novo, sem tipo de logística, ou ainda
-        // está em movimento (pra rastrear entrega/devolução). Pedidos já
-        // finalizados (entregue/devolvido/cancelado) são pulados = re-sync rápido.
-        const done = ['delivered', 'returned', 'cancelled'].includes(
-          (exists?.shippingStatus || '').toLowerCase(),
-        );
-        const needsShipment = !exists || !exists.logisticType || !done;
-        const ship = needsShipment
-          ? await this.fetchShipmentInfo(accessToken, order)
-          : {
-              shippingStatus: order.shipping?.status ?? undefined,
-              shippingSubstatus: exists.shippingSubstatus,
-              logisticType: exists.logisticType,
-              trackingNumber: order.shipping?.tracking_number ?? undefined,
-              notDeliveredAt: exists.notDeliveredAt,
-              returnedAt: exists.returnedAt,
-            };
-
-        if (exists) {
-          // Atualiza status e envio se mudaram
-          await this.orderRepo.update(exists.id, {
-            status: order.status ?? exists.status,
-            shippingStatus: ship.shippingStatus ?? exists.shippingStatus,
-            shippingSubstatus:
-              ship.shippingSubstatus ?? exists.shippingSubstatus,
-            logisticType: ship.logisticType ?? exists.logisticType,
-            trackingNumber: ship.trackingNumber ?? exists.trackingNumber,
-            notDeliveredAt: ship.notDeliveredAt ?? exists.notDeliveredAt,
-            returnedAt: ship.returnedAt ?? exists.returnedAt,
-          });
-          continue;
-        }
-
-        const buyerFullName =
-          `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
-        const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';
-        const item = order.order_items?.[0];
-
-        await this.orderRepo.save({
-          tenantId: account.tenantId,
-          externalId,
-          marketplace: 'mercadolivre',
-          packId: order.pack_id ? String(order.pack_id) : undefined,
-          buyerId: String(order.buyer?.id ?? ''),
-          buyerName,
-          buyerEmail: order.buyer?.email ?? undefined,
-          itemId: item?.item?.id ?? undefined,
-          itemTitle: item?.item?.title ?? undefined,
-          itemQuantity: item?.quantity ?? undefined,
-          totalAmount: order.total_amount ?? undefined,
-          currency: order.currency_id ?? 'BRL',
-          status: order.status ?? 'confirmed',
-          shippingStatus: ship.shippingStatus,
-          shippingSubstatus: ship.shippingSubstatus,
-          logisticType: ship.logisticType,
-          trackingNumber: ship.trackingNumber,
-          notDeliveredAt: ship.notDeliveredAt,
-          returnedAt: ship.returnedAt,
-          orderDate: new Date(order.date_created),
-        });
-        synced++;
+        if (await this.upsertOrderFromMl(account, accessToken, order)) synced++;
       }
     } catch (err) {
       this.logger.error(`Erro ao buscar pedidos: ${(err as Error).message}`);
+    }
+    return synced;
+  }
+
+  /**
+   * Insere/atualiza um pedido a partir dos dados do ML. Retorna true se for novo.
+   */
+  private async upsertOrderFromMl(
+    account: MarketplaceAccount,
+    accessToken: string,
+    order: MlOrder,
+  ): Promise<boolean> {
+    const externalId = String(order.id);
+    const exists = await this.orderRepo.findOne({
+      where: { externalId, tenantId: account.tenantId },
+    });
+
+    // Busca o shipment quando é novo, sem tipo de logística, ou ainda está em
+    // movimento (pra rastrear entrega/devolução). Finalizados são pulados.
+    const done = ['delivered', 'returned', 'cancelled'].includes(
+      (exists?.shippingStatus || '').toLowerCase(),
+    );
+    const needsShipment = !exists || !exists.logisticType || !done;
+    const ship = needsShipment
+      ? await this.fetchShipmentInfo(accessToken, order)
+      : {
+          shippingStatus: order.shipping?.status ?? undefined,
+          shippingSubstatus: exists.shippingSubstatus,
+          logisticType: exists.logisticType,
+          trackingNumber: order.shipping?.tracking_number ?? undefined,
+          notDeliveredAt: exists.notDeliveredAt,
+          returnedAt: exists.returnedAt,
+        };
+
+    if (exists) {
+      await this.orderRepo.update(exists.id, {
+        status: order.status ?? exists.status,
+        shippingStatus: ship.shippingStatus ?? exists.shippingStatus,
+        shippingSubstatus: ship.shippingSubstatus ?? exists.shippingSubstatus,
+        logisticType: ship.logisticType ?? exists.logisticType,
+        trackingNumber: ship.trackingNumber ?? exists.trackingNumber,
+        notDeliveredAt: ship.notDeliveredAt ?? exists.notDeliveredAt,
+        returnedAt: ship.returnedAt ?? exists.returnedAt,
+      });
+      return false;
+    }
+
+    const buyerFullName =
+      `${order.buyer?.first_name ?? ''} ${order.buyer?.last_name ?? ''}`.trim();
+    const buyerName = order.buyer?.nickname || buyerFullName || 'Cliente';
+    const item = order.order_items?.[0];
+
+    await this.orderRepo.save({
+      tenantId: account.tenantId,
+      externalId,
+      marketplace: 'mercadolivre',
+      packId: order.pack_id ? String(order.pack_id) : undefined,
+      buyerId: String(order.buyer?.id ?? ''),
+      buyerName,
+      buyerEmail: order.buyer?.email ?? undefined,
+      itemId: item?.item?.id ?? undefined,
+      itemTitle: item?.item?.title ?? undefined,
+      itemQuantity: item?.quantity ?? undefined,
+      totalAmount: order.total_amount ?? undefined,
+      currency: order.currency_id ?? 'BRL',
+      status: order.status ?? 'confirmed',
+      shippingStatus: ship.shippingStatus,
+      shippingSubstatus: ship.shippingSubstatus,
+      logisticType: ship.logisticType,
+      trackingNumber: ship.trackingNumber,
+      notDeliveredAt: ship.notDeliveredAt,
+      returnedAt: ship.returnedAt,
+      orderDate: new Date(order.date_created),
+    });
+    return true;
+  }
+
+  // ─── Devoluções (via claims/returns) ─────────────────────────────────────────
+
+  /**
+   * Puxa os pedidos em devolução a partir das claims do ML, independente da
+   * janela de 30 dias, e os traz para o Envios (colunas Não entregue / etc.).
+   */
+  private async syncReturns(
+    account: MarketplaceAccount,
+    accessToken: string,
+  ): Promise<number> {
+    let synced = 0;
+    try {
+      const data = (await this.mlService.getClaims(
+        accessToken,
+        account.sellerId,
+      )) as { results: MlClaim[] };
+      const claims = data?.results ?? [];
+      this.logger.log(
+        `Devoluções: ${claims.length} claims para seller=${account.sellerId}`,
+      );
+
+      for (const claim of claims) {
+        const orderId = claim.order_id ?? claim.resource_id;
+        if (!orderId) continue;
+        try {
+          const order = (await this.mlService.getOrderById(
+            accessToken,
+            String(orderId),
+          )) as MlOrder;
+          if (order?.id) {
+            if (await this.upsertOrderFromMl(account, accessToken, order))
+              synced++;
+          }
+        } catch (e) {
+          this.logger.warn(
+            `Devolução order=${orderId} ignorada: ${(e as Error).message}`,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Erro ao buscar devoluções: ${(err as Error).message}`);
     }
     return synced;
   }
