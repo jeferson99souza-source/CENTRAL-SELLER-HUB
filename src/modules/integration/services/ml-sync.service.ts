@@ -121,14 +121,16 @@ export class MlSyncService {
           `Token OK para seller=${account.sellerId}. Iniciando sync...`,
         );
 
-        const [messages, complaints, questions, orders, returns] =
-          await Promise.all([
-            this.syncMessages(account, accessToken),
-            this.syncComplaints(account, accessToken),
-            this.syncQuestions(account, accessToken),
-            this.syncOrders(account, accessToken),
-            this.syncReturns(account, accessToken),
-          ]);
+        // Mensagens têm prioridade: sincroniza PRIMEIRO, antes do sync pesado
+        // de pedidos/envios (que pode esbarrar no rate limit do ML e atropelar
+        // as mensagens se rodar tudo junto).
+        const messages = await this.syncMessages(account, accessToken);
+        const [complaints, questions, orders, returns] = await Promise.all([
+          this.syncComplaints(account, accessToken),
+          this.syncQuestions(account, accessToken),
+          this.syncOrders(account, accessToken),
+          this.syncReturns(account, accessToken),
+        ]);
         totalMessages += messages;
         totalComplaints += complaints;
         totalQuestions += questions;
