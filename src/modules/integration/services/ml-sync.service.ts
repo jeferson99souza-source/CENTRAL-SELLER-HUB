@@ -49,9 +49,12 @@ interface MlClaim {
   id: number;
   reason_id: string;
   status: string;
-  date_created: string;
+  date_created?: string;
+  resource?: string; // 'order' | 'shipment' | ...
   resource_id?: number;
   order_id?: number;
+  type?: string; // 'cancel_purchase' | 'return' | 'mediations' | ...
+  stage?: string;
 }
 
 interface MlQuestion {
@@ -461,8 +464,8 @@ export class MlSyncService {
       const data = (await this.mlService.getClaims(
         accessToken,
         account.sellerId,
-      )) as { results: MlClaim[] };
-      const claims = data?.results ?? [];
+      )) as { data?: MlClaim[]; results?: MlClaim[] };
+      const claims = data?.data ?? data?.results ?? [];
       this.logger.log(
         `Reclamações: ${claims.length} para seller=${account.sellerId}`,
       );
@@ -558,7 +561,7 @@ export class MlSyncService {
           continue;
         }
 
-        const slaDeadline = new Date(claim.date_created);
+        const slaDeadline = new Date(claim.date_created ?? Date.now());
         slaDeadline.setHours(slaDeadline.getHours() + 24);
 
         let buyerName: string | undefined;
@@ -903,28 +906,76 @@ export class MlSyncService {
   ): Promise<number> {
     let synced = 0;
     try {
-      const data = (await this.mlService.getClaims(
-        accessToken,
-        account.sellerId,
-      )) as { results: MlClaim[] };
-      const claims = data?.results ?? [];
+      // Histórico total pode ter milhares. Pagina as mais novas e filtra os
+      // últimos 30 dias.
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const claims: MlClaim[] = [];
+      let offset = 0;
+      while (offset < 200) {
+        let page: MlClaim[] = [];
+        try {
+          const data = (await this.mlService.getClaims(
+            accessToken,
+            account.sellerId,
+            offset,
+          )) as { data?: MlClaim[]; results?: MlClaim[] };
+          page = data?.data ?? data?.results ?? [];
+        } catch (e) {
+          this.logger.warn(
+            `Devoluções: paginação parou no offset ${offset}: ${(e as Error).message}`,
+          );
+          break;
+        }
+        if (!page.length) break;
+        claims.push(
+          ...page.filter(
+            (c) =>
+              !c.date_created || new Date(c.date_created).getTime() >= cutoff,
+          ),
+        );
+        const allOld = page.every(
+          (c) => c.date_created && new Date(c.date_created).getTime() < cutoff,
+        );
+        if (page.length < 50 || allOld) break;
+        offset += 50;
+      }
       this.logger.log(
-        `Devoluções: ${claims.length} claims para seller=${account.sellerId}`,
+        `Devoluções: ${claims.length} claims (últimos 30 dias) para seller=${account.sellerId}`,
       );
 
-      for (const claim of claims) {
-        const orderId = claim.order_id ?? claim.resource_id;
-        if (!orderId) continue;
+      const toProcess = claims.slice(0, 80);
+      for (const claim of toProcess) {
         try {
+          // Resolve o pedido: order_id, ou resource=order/shipment
+          let orderId: string | undefined = claim.order_id
+            ? String(claim.order_id)
+            : undefined;
+          if (!orderId && claim.resource_id) {
+            if (claim.resource === 'shipment') {
+              try {
+                const sh = (await this.mlService.getShipment(
+                  accessToken,
+                  String(claim.resource_id),
+                )) as { order_id?: number };
+                if (sh?.order_id) orderId = String(sh.order_id);
+              } catch {
+                /* segue */
+              }
+            } else {
+              orderId = String(claim.resource_id);
+            }
+          }
+          if (!orderId) continue;
+
           const order = (await this.mlService.getOrderById(
             accessToken,
-            String(orderId),
+            orderId,
           )) as MlOrder;
           if (!order?.id) continue;
           if (await this.upsertOrderFromMl(account, accessToken, order))
             synced++;
 
-          // Status do envio de DEVOLUÇÃO (leg de volta) — vem das claims
+          // Status do envio de DEVOLUÇÃO (leg de volta)
           let returnStatus: string | undefined;
           let returnTracking: string | undefined;
           try {
@@ -935,25 +986,26 @@ export class MlSyncService {
             const shipment = returns?.shipments?.[0];
             returnStatus = shipment?.status ?? undefined;
             returnTracking = shipment?.tracking_number ?? undefined;
-            this.logger.warn(
-              `[devolucao] claim=${claim.id} order=${orderId} returnStatus=${returnStatus} raw=${JSON.stringify(returns).slice(0, 220)}`,
-            );
-          } catch (e) {
-            this.logger.warn(
-              `[devolucao] claim=${claim.id} sem returns: ${(e as Error).message}`,
-            );
+          } catch {
+            /* sem detalhe do envio de volta */
           }
+          this.logger.warn(
+            `[devolucao] claim=${claim.id} type=${claim.type} status=${claim.status} order=${orderId} returnStatus=${returnStatus}`,
+          );
 
-          // Marca o pedido como em devolução
+          const startedAt = claim.date_created
+            ? new Date(claim.date_created)
+            : new Date();
           const dbOrder = await this.orderRepo.findOne({
-            where: { externalId: String(orderId), tenantId: account.tenantId },
+            where: { externalId: orderId, tenantId: account.tenantId },
           });
           if (dbOrder) {
-            const isReturned = (returnStatus || '').toLowerCase() === 'delivered';
+            const isReturned =
+              (returnStatus || '').toLowerCase() === 'delivered';
             await this.orderRepo.update(dbOrder.id, {
-              returnStatus: returnStatus ?? dbOrder.returnStatus,
-              returnStartedAt:
-                dbOrder.returnStartedAt ?? new Date(claim.date_created),
+              // marca sempre como em devolução (in_return) se não houver status do envio
+              returnStatus: returnStatus ?? dbOrder.returnStatus ?? 'in_return',
+              returnStartedAt: dbOrder.returnStartedAt ?? startedAt,
               returnedAt: isReturned
                 ? (dbOrder.returnedAt ?? new Date())
                 : dbOrder.returnedAt,
@@ -962,7 +1014,7 @@ export class MlSyncService {
           }
         } catch (e) {
           this.logger.warn(
-            `Devolução order=${orderId} ignorada: ${(e as Error).message}`,
+            `Devolução claim=${claim.id} ignorada: ${(e as Error).message}`,
           );
         }
       }

@@ -271,10 +271,15 @@ export class MercadoLivreService {
     );
   }
 
-  async getClaims(accessToken: string, sellerId: string): Promise<unknown> {
-    this.logger.log(`Buscando reclamações seller=${sellerId}`);
+  async getClaims(
+    accessToken: string,
+    sellerId: string,
+    offset = 0,
+  ): Promise<unknown> {
+    this.logger.log(`Buscando reclamações seller=${sellerId} offset=${offset}`);
+    // Mais novas primeiro para filtrar os últimos 30 dias
     return this.mlGet(
-      `/post-purchase/v1/claims/search?seller_id=${sellerId}&player_role=respondent&player_user_id=${sellerId}&limit=50`,
+      `/post-purchase/v1/claims/search?seller_id=${sellerId}&player_role=respondent&player_user_id=${sellerId}&sort=date_desc&limit=50&offset=${offset}`,
       accessToken,
     );
   }
