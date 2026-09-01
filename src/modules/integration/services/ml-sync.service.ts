@@ -736,7 +736,7 @@ export class MlSyncService {
       let offset = 0;
       const orders: MlOrder[] = [];
       // Últimos 30 dias para acompanhar a transição de envios/devoluções.
-      while (offset < 300) {
+      while (offset < 1000) {
         let page: MlOrder[] = [];
         try {
           const ordersData = (await this.mlService.getOrders(

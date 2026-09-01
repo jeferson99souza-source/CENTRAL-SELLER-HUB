@@ -110,9 +110,17 @@ export class IntegrationController {
     description: 'Busca mensagens e reclamações da API do ML e salva no banco.',
   })
   @Post('mercadolivre/sync')
-  async syncMercadoLivre(@TenantId() tenantId: string) {
-    const result = await this.mlSyncService.syncForTenant(tenantId);
-    return { data: result };
+  syncMercadoLivre(@TenantId() tenantId: string) {
+    // Contas com muito volume: roda em segundo plano para não estourar o
+    // timeout do request. Os dados vão sendo salvos e aparecem ao atualizar.
+    void this.mlSyncService
+      .syncForTenant(tenantId)
+      .catch((err) =>
+        this.logger.error(
+          `Sync em background falhou: ${(err as Error).message}`,
+        ),
+      );
+    return { data: { started: true } };
   }
 
   @ApiBearerAuth()
