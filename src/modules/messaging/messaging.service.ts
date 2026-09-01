@@ -52,15 +52,32 @@ export class MessagingService {
     });
   }
 
-  // Retorna as últimas 100 mensagens (todas) — pendentes primeiro, depois mais recentes
+  // Uma conversa por pack (a mensagem mais recente), pendentes primeiro.
   async findAll(tenantId: string): Promise<Message[]> {
-    return this.messageRepo
+    const rows = await this.messageRepo
       .createQueryBuilder('m')
       .where('m.tenantId = :tenantId', { tenantId })
-      .orderBy(`CASE WHEN m.status = 'pending' THEN 0 ELSE 1 END`, 'ASC')
+      .orderBy('m.packId', 'ASC')
       .addOrderBy('m.createdAt', 'DESC')
-      .take(100)
       .getMany();
+
+    // Mantém só a mensagem mais recente de cada conversa (pack)
+    const latestByPack = new Map<string, Message>();
+    for (const m of rows) {
+      const key = m.packId || m.id;
+      if (!latestByPack.has(key)) latestByPack.set(key, m);
+    }
+
+    const list = [...latestByPack.values()];
+    list.sort((a, b) => {
+      const pa = a.status === 'pending' ? 0 : 1;
+      const pb = b.status === 'pending' ? 0 : 1;
+      if (pa !== pb) return pa - pb; // pendentes primeiro
+      return (
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    });
+    return list.slice(0, 200);
   }
 
   async findByPack(tenantId: string, packId: string): Promise<Message[]> {

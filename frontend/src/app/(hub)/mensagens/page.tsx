@@ -4,7 +4,7 @@ import MessagesLayout from './MessagesLayout'
 
 async function MessagesData() {
   try {
-    const result = await apiFetch<unknown>('/messaging/pending')
+    const result = await apiFetch<unknown>('/messaging/all')
     const messages: Message[] = Array.isArray(result) ? result : []
     return <MessagesLayout messages={messages} />
   } catch {
