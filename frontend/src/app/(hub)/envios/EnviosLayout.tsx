@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight, Eye, EyeOff, Undo2 } from 'lucide-react'
 import type { Order } from '@/lib/api'
 
 const PAGE_SIZE = 12
@@ -26,7 +26,13 @@ function LogisticBadge({ type }: { type: string | null }) {
   )
 }
 
-type ColumnKey = 'a_enviar' | 'transito' | 'entregue' | 'nao_entregue' | 'nao_devolvido'
+type ColumnKey =
+  | 'a_enviar'
+  | 'transito'
+  | 'entregue'
+  | 'nao_entregue'
+  | 'reclamacao'
+  | 'nao_devolvido'
 
 const COLUMNS: {
   key: ColumnKey
@@ -39,6 +45,7 @@ const COLUMNS: {
   { key: 'transito',      label: 'Em trânsito',   icon: Send,          color: 'text-blue-600',   head: 'bg-blue-50' },
   { key: 'entregue',      label: 'Entregue',      icon: CheckCircle,   color: 'text-green-600',  head: 'bg-green-50' },
   { key: 'nao_entregue',  label: 'Não entregue',  icon: RotateCcw,     color: 'text-purple-600', head: 'bg-purple-50' },
+  { key: 'reclamacao',    label: 'Reclamações',   icon: Undo2,         color: 'text-pink-600',   head: 'bg-pink-50' },
   { key: 'nao_devolvido', label: 'Não devolvido', icon: AlertTriangle, color: 'text-red-600',    head: 'bg-red-50' },
 ]
 
@@ -92,18 +99,23 @@ function bucket(o: Order): ColumnKey {
   const s = (o.shippingStatus || '').toLowerCase()
   const sub = (o.shippingSubstatus || '').toLowerCase()
 
-  // Em devolução por: claim (returnStartedAt/returnStatus) OU envio que voltou
-  // (não entregue / retornando) — os dois entram no fluxo de devolução.
-  const inReturn =
-    !!o.returnStartedAt || !!o.returnStatus || !!o.returnedAt ||
+  // Devolução aberta pelo comprador (reclamação/claim)
+  const isClaimReturn = !!o.returnStartedAt || !!o.returnStatus || !!o.returnedAt
+  // Envio que voltou pela transportadora (auto-retorno)
+  const carrierReturn =
     s === 'not_delivered' || s === 'returning' || s === 'returned' ||
     sub.includes('return') || sub.includes('not_delivered')
 
-  if (inReturn) {
-    // Já devolvido → fica em "Não entregue" com a tag Devolvido
+  if (isClaimReturn) {
+    if (returnStatus(o) === 'devolvido') return 'reclamacao' // com tag Devolvido
+    const d = daysSince(o.returnStartedAt)
+    if (d !== null && d > 7) return 'nao_devolvido'
+    return 'reclamacao'
+  }
+
+  if (carrierReturn) {
     if (returnStatus(o) === 'devolvido') return 'nao_entregue'
-    // Não devolvido e passou de 7 dias desde a abertura → coluna de chamado
-    const d = daysSince(o.returnStartedAt) ?? daysSince(o.notDeliveredAt)
+    const d = daysSince(o.notDeliveredAt)
     if (d !== null && d > 7) return 'nao_devolvido'
     return 'nao_entregue'
   }
@@ -178,6 +190,7 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
     transito: 1,
     entregue: 1,
     nao_entregue: 1,
+    reclamacao: 1,
     nao_devolvido: 1,
   })
   const [showTitle, setShowTitle] = useState(true)
@@ -212,6 +225,7 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
     transito: [],
     entregue: [],
     nao_entregue: [],
+    reclamacao: [],
     nao_devolvido: [],
   }
   for (const o of visible) grouped[bucket(o)].push(o)
@@ -278,7 +292,7 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
                     </div>
                   )}
 
-                  {(col.key === 'nao_entregue' || col.key === 'nao_devolvido') && (
+                  {(col.key === 'nao_entregue' || col.key === 'reclamacao' || col.key === 'nao_devolvido') && (
                     <div className="flex items-center justify-between gap-2">
                       <ReturnTag order={o} />
                       {(daysSince(o.returnStartedAt) ?? daysSince(o.notDeliveredAt)) !== null && (
