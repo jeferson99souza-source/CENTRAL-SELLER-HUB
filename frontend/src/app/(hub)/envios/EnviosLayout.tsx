@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight, Eye, EyeOff, Undo2 } from 'lucide-react'
-import type { Order } from '@/lib/api'
+import type { Order, Complaint } from '@/lib/api'
 
 const PAGE_SIZE = 12
 
@@ -83,6 +83,66 @@ function ReturnTag({ order }: { order: Order }) {
   )
 }
 
+// Etapa da devolução (reclamação) → rótulo + cor
+function complaintTag(c: Complaint): { label: string; color: string } {
+  const stage = c.stage || ''
+  const rss = (c.returnShipmentStatus || '').toLowerCase()
+  const overdue =
+    !c.returnShipmentStatus &&
+    ['return_requested', 'opened', 'mediation', ''].includes(stage) &&
+    (daysSince(c.createdAt) ?? 0) > 7
+  if (
+    ['return_received', 'refunded', 'resolved'].includes(stage) ||
+    rss === 'delivered' ||
+    rss === 'returned'
+  )
+    return { label: 'Devolvido', color: 'bg-green-600 text-white' }
+  if (stage === 'return_in_transit' || rss === 'shipped' || rss.includes('transit'))
+    return { label: 'Devolução a caminho', color: 'bg-amber-500 text-white' }
+  if (overdue) return { label: 'Não devolvido', color: 'bg-red-600 text-white' }
+  if (stage === 'return_requested' || c.returnShipmentStatus)
+    return { label: 'Devolução solicitada', color: 'bg-blue-500 text-white' }
+  return { label: 'Em análise', color: 'bg-gray-400 text-white' }
+}
+
+function ComplaintCard({ c, showTitle }: { c: Complaint; showTitle: boolean }) {
+  const tag = complaintTag(c)
+  const d = daysSince(c.createdAt)
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <span className="text-sm font-bold text-gray-900 truncate">{c.buyerName || 'Cliente'}</span>
+        </div>
+        <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${tag.color}`}>{tag.label}</span>
+      </div>
+      {showTitle && c.itemTitle && (
+        <div className="flex items-start gap-1.5">
+          <Package className="w-3.5 h-3.5 text-orange-400 shrink-0 mt-0.5" />
+          <span className="text-xs text-gray-600 leading-snug line-clamp-2">{c.itemTitle}</span>
+        </div>
+      )}
+      {c.reason && (
+        <p className="text-[11px] text-gray-500 leading-snug line-clamp-2">{c.reason}</p>
+      )}
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <span className="text-[10px] font-semibold text-gray-500 uppercase truncate">{c.status}</span>
+        {d !== null && (
+          <span className="flex items-center gap-1 text-[10px] text-gray-400 shrink-0">
+            <Clock className="w-3 h-3" />{d}d
+          </span>
+        )}
+      </div>
+      {c.returnTrackingCode && (
+        <div className="flex items-center gap-1 text-[10px] text-gray-400">
+          <MapPin className="w-3 h-3" />{c.returnTrackingCode}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const SHIPPING_LABEL: Record<string, string> = {
   pending:       'Pendente',
   handling:      'Preparando',
@@ -95,23 +155,14 @@ const SHIPPING_LABEL: Record<string, string> = {
   cancelled:     'Cancelado',
 }
 
-function bucket(o: Order): ColumnKey {
+// Pedidos: só as colunas de envio (a "Em devolução" vem das reclamações)
+function bucket(o: Order): Exclude<ColumnKey, 'reclamacao'> {
   const s = (o.shippingStatus || '').toLowerCase()
   const sub = (o.shippingSubstatus || '').toLowerCase()
 
-  // Devolução aberta pelo comprador (reclamação/claim)
-  const isClaimReturn = !!o.returnStartedAt || !!o.returnStatus || !!o.returnedAt
-  // Envio que voltou pela transportadora (auto-retorno)
   const carrierReturn =
     s === 'not_delivered' || s === 'returning' || s === 'returned' ||
     sub.includes('return') || sub.includes('not_delivered')
-
-  if (isClaimReturn) {
-    if (returnStatus(o) === 'devolvido') return 'reclamacao' // com tag Devolvido
-    const d = daysSince(o.returnStartedAt)
-    if (d !== null && d > 7) return 'nao_devolvido'
-    return 'reclamacao'
-  }
 
   if (carrierReturn) {
     if (returnStatus(o) === 'devolvido') return 'nao_entregue'
@@ -184,7 +235,13 @@ function Pager({
   )
 }
 
-export default function EnviosLayout({ orders }: { orders: Order[] }) {
+export default function EnviosLayout({
+  orders,
+  complaints = [],
+}: {
+  orders: Order[]
+  complaints?: Complaint[]
+}) {
   const [pages, setPages] = useState<Record<ColumnKey, number>>({
     a_enviar: 1,
     transito: 1,
@@ -195,7 +252,7 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
   })
   const [showTitle, setShowTitle] = useState(true)
 
-  if (!orders.length) {
+  if (!orders.length && !complaints.length) {
     return (
       <div className="text-center py-16 text-gray-400">
         <Truck className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -204,6 +261,22 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
       </div>
     )
   }
+
+  // Reclamações que são devolução (para a coluna "Em devolução")
+  const returnComplaints = complaints
+    .filter(
+      (c) =>
+        c.isReturn ||
+        !!c.returnShipmentStatus ||
+        !!c.stage ||
+        c.status !== 'closed',
+    )
+    .sort((a, b) => {
+      const ra = a.status === 'closed' ? 1 : 0
+      const rb = b.status === 'closed' ? 1 : 0
+      if (ra !== rb) return ra - rb // não resolvidas primeiro
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
 
   // Mostra os últimos 30 dias (mais os que ainda estão em fluxo de devolução)
   const cutoff = Date.now() - 30 * 86400000
@@ -244,7 +317,10 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
 
       <div className="flex gap-4 overflow-x-auto pb-4">
         {COLUMNS.map((col) => {
-        const all = grouped[col.key]
+        const isReclamacao = col.key === 'reclamacao'
+        const all: (Order | Complaint)[] = isReclamacao
+          ? returnComplaints
+          : grouped[col.key]
         const totalPages = Math.max(1, Math.ceil(all.length / PAGE_SIZE))
         const page = Math.min(pages[col.key], totalPages)
         const items = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -263,7 +339,13 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
               {all.length === 0 && (
                 <p className="text-xs text-gray-300 text-center py-6">Vazio</p>
               )}
-              {items.map((o) => (
+              {items.map((item) => {
+                if (isReclamacao) {
+                  const c = item as Complaint
+                  return <ComplaintCard key={c.id} c={c} showTitle={showTitle} />
+                }
+                const o = item as Order
+                return (
                 <div key={o.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -321,7 +403,8 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
                     )}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             <Pager

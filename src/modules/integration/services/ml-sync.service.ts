@@ -131,15 +131,16 @@ export class MlSyncService {
           this.syncMessages(account, accessToken),
           this.syncQuestions(account, accessToken),
         ]);
-        const [complaints, orders, returns] = await Promise.all([
+        // syncReturns (marcar devolução nos pedidos) foi descontinuado — a
+        // coluna "Em devolução" agora vem das reclamações (syncComplaints).
+        const [complaints, orders] = await Promise.all([
           this.syncComplaints(account, accessToken),
           this.syncOrders(account, accessToken),
-          this.syncReturns(account, accessToken),
         ]);
         totalMessages += messages;
         totalComplaints += complaints;
         totalQuestions += questions;
-        totalOrders += orders + returns;
+        totalOrders += orders;
 
         await this.accountRepo.update(account.id, { lastSyncAt: new Date() });
         this.logger.log(

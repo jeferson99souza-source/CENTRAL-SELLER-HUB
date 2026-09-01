@@ -1,15 +1,15 @@
 import { Suspense } from 'react'
-import { apiFetch, type Order } from '@/lib/api'
+import { apiFetch, type Order, type Complaint } from '@/lib/api'
 import EnviosLayout from './EnviosLayout'
 
 async function EnviosData() {
-  try {
-    const result = await apiFetch<unknown>('/orders')
-    const orders: Order[] = Array.isArray(result) ? result : []
-    return <EnviosLayout orders={orders} />
-  } catch {
-    return <EnviosLayout orders={[]} />
-  }
+  const [ordersRes, complaintsRes] = await Promise.all([
+    apiFetch<unknown>('/orders').catch(() => null),
+    apiFetch<unknown>('/complaints').catch(() => null),
+  ])
+  const orders: Order[] = Array.isArray(ordersRes) ? ordersRes : []
+  const complaints: Complaint[] = Array.isArray(complaintsRes) ? complaintsRes : []
+  return <EnviosLayout orders={orders} complaints={complaints} />
 }
 
 function Skeleton() {
