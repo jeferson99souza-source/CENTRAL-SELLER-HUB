@@ -18,6 +18,7 @@ type DiagnoseResult = {
     lastSyncAt: string | null
     tokenTest: { ok: boolean; nickname?: string; sellerId?: string; error?: string }
     unread?: { count: number | null; raw?: string }
+    claims?: { count: number | null; raw?: string }
   }[]
 }
 
@@ -123,6 +124,17 @@ export default function DiagnoseButton() {
                       {acc.unread?.raw && (
                         <p className="text-[10px] text-gray-400 break-all">
                           resposta ML: {acc.unread.raw}
+                        </p>
+                      )}
+                      {acc.claims && (
+                        <p>
+                          🧾 Reclamações/devoluções que o ML retorna:{' '}
+                          <strong>{acc.claims.count ?? '—'}</strong>
+                        </p>
+                      )}
+                      {acc.claims?.raw && (
+                        <p className="text-[10px] text-gray-400 break-all">
+                          claims: {acc.claims.raw}
                         </p>
                       )}
                     </>

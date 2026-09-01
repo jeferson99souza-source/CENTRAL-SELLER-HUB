@@ -206,6 +206,7 @@ export class IntegrationController {
           error?: string;
         };
         let unread: { count: number | null; raw?: string } = { count: null };
+        let claims: { count: number | null; raw?: string } = { count: null };
         try {
           const accessToken = isExpired
             ? await this.mlService.refreshAccountToken(account)
@@ -233,6 +234,24 @@ export class IntegrationController {
           } catch (ue) {
             unread = { count: null, raw: `erro: ${(ue as Error).message}` };
           }
+
+          // Verifica quantas reclamações/devoluções o ML retorna
+          try {
+            const c = (await this.mlService.getClaims(
+              accessToken,
+              account.sellerId,
+            )) as any;
+            const count =
+              c?.paging?.total ??
+              c?.total ??
+              (Array.isArray(c?.results) ? c.results.length : null);
+            claims = {
+              count: typeof count === 'number' ? count : null,
+              raw: JSON.stringify(c).slice(0, 300),
+            };
+          } catch (ce) {
+            claims = { count: null, raw: `erro: ${(ce as Error).message}` };
+          }
         } catch (err) {
           tokenTest = { ok: false, error: (err as Error).message };
         }
@@ -248,6 +267,7 @@ export class IntegrationController {
           minutesUntilExpiry,
           tokenTest,
           unread,
+          claims,
         };
       }),
     );
