@@ -370,6 +370,22 @@ export class MlSyncService {
         continue;
       }
 
+      // Adota a resposta salva localmente (local-...) quando a real chega do ML
+      if (sender === 'vendedor' && content) {
+        const localDup = await this.messageRepo.findOne({
+          where: {
+            packId,
+            tenantId: account.tenantId,
+            sender: 'vendedor',
+            content,
+          },
+        });
+        if (localDup?.externalId?.startsWith('local-')) {
+          await this.messageRepo.update(localDup.id, { externalId });
+          continue;
+        }
+      }
+
       const isAutoNotification = sender === 'cliente' && content === '';
       const slaDeadline = new Date(msg.message_date?.received ?? Date.now());
       slaDeadline.setHours(slaDeadline.getHours() + 48);

@@ -163,6 +163,23 @@ export class MessagingService {
       { id: messageId, tenantId },
       { status: 'replied', repliedAt: new Date() },
     );
+
+    // Salva a resposta do vendedor localmente para aparecer no chat na hora.
+    // externalId 'local-...' é adotado pelo sync quando a mensagem real chega do ML.
+    await this.messageRepo.save({
+      tenantId,
+      marketplaceAccountId: resolvedAccount.id,
+      orderId: message.orderId,
+      packId: message.packId,
+      externalId: `local-${message.packId}-${Date.now()}`,
+      buyerId: message.buyerId,
+      buyerName: message.buyerName,
+      itemTitle: message.itemTitle,
+      sender: 'vendedor',
+      content: text.trim(),
+      status: 'replied',
+      slaDeadline: message.slaDeadline,
+    });
   }
 
   async save(message: Partial<Message>): Promise<Message> {
