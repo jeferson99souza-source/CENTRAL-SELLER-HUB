@@ -42,10 +42,16 @@ const COLUMNS: {
   { key: 'nao_devolvido', label: 'Não devolvido', icon: AlertTriangle, color: 'text-red-600',    head: 'bg-red-50' },
 ]
 
-// Devolvido (chegou de volta) ou ainda a caminho? — baseado no envio de volta
+// Devolvido (chegou de volta) ou ainda a caminho?
 function returnStatus(o: Order): 'devolvido' | 'a_caminho' {
   const rs = (o.returnStatus || '').toLowerCase()
-  if (o.returnedAt || rs === 'delivered' || rs === 'returned') return 'devolvido'
+  const s = (o.shippingStatus || '').toLowerCase()
+  const sub = (o.shippingSubstatus || '').toLowerCase()
+  if (
+    o.returnedAt || rs === 'delivered' || rs === 'returned' ||
+    s === 'returned' || sub.includes('returned')
+  )
+    return 'devolvido'
   return 'a_caminho'
 }
 
@@ -83,21 +89,25 @@ const SHIPPING_LABEL: Record<string, string> = {
 }
 
 function bucket(o: Order): ColumnKey {
-  // Fluxo de DEVOLUÇÃO tem prioridade — independe do envio original (que foi
-  // "entregue" ao comprador). Marcado pelas claims (returnStartedAt/returnStatus).
+  const s = (o.shippingStatus || '').toLowerCase()
+  const sub = (o.shippingSubstatus || '').toLowerCase()
+
+  // Em devolução por: claim (returnStartedAt/returnStatus) OU envio que voltou
+  // (não entregue / retornando) — os dois entram no fluxo de devolução.
   const inReturn =
-    !!o.returnStartedAt || !!o.returnStatus || !!o.returnedAt
+    !!o.returnStartedAt || !!o.returnStatus || !!o.returnedAt ||
+    s === 'not_delivered' || s === 'returning' || s === 'returned' ||
+    sub.includes('return') || sub.includes('not_delivered')
 
   if (inReturn) {
     // Já devolvido → fica em "Não entregue" com a tag Devolvido
     if (returnStatus(o) === 'devolvido') return 'nao_entregue'
     // Não devolvido e passou de 7 dias desde a abertura → coluna de chamado
-    const d = daysSince(o.returnStartedAt)
+    const d = daysSince(o.returnStartedAt) ?? daysSince(o.notDeliveredAt)
     if (d !== null && d > 7) return 'nao_devolvido'
     return 'nao_entregue'
   }
 
-  const s = (o.shippingStatus || '').toLowerCase()
   if (s === 'delivered') return 'entregue'
   if (s === 'shipped') return 'transito'
   return 'a_enviar' // pending, handling, ready_to_ship, cancelled, sem info
@@ -271,10 +281,10 @@ export default function EnviosLayout({ orders }: { orders: Order[] }) {
                   {(col.key === 'nao_entregue' || col.key === 'nao_devolvido') && (
                     <div className="flex items-center justify-between gap-2">
                       <ReturnTag order={o} />
-                      {daysSince(o.returnStartedAt) !== null && (
+                      {(daysSince(o.returnStartedAt) ?? daysSince(o.notDeliveredAt)) !== null && (
                         <span className="flex items-center gap-1 text-[10px] text-gray-400 shrink-0">
                           <Clock className="w-3 h-3" />
-                          {daysSince(o.returnStartedAt)}d
+                          {daysSince(o.returnStartedAt) ?? daysSince(o.notDeliveredAt)}d
                         </span>
                       )}
                     </div>
