@@ -316,7 +316,14 @@ export class MlSyncService {
       );
     }
 
+    const seteDiasAtras = Date.now() - 7 * 24 * 60 * 60 * 1000;
     for (const msg of mlMessages) {
+      // Só processa mensagens recebidas nos últimos 7 dias
+      const received = new Date(
+        msg.message_date?.received ?? Date.now(),
+      ).getTime();
+      if (received < seteDiasAtras) continue;
+
       const externalId = String(msg.id);
       const sender = msg.from?.user_id === sellerId ? 'vendedor' : 'cliente';
       const buyerId = String(

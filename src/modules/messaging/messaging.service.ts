@@ -53,10 +53,14 @@ export class MessagingService {
   }
 
   // Uma conversa por pack (a mensagem mais recente), pendentes primeiro.
+  // Só mostra mensagens recebidas nos últimos 7 dias (recebido = SLA - 48h,
+  // então SLA >= agora - 5 dias).
   async findAll(tenantId: string): Promise<Message[]> {
+    const cutoff = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
     const rows = await this.messageRepo
       .createQueryBuilder('m')
       .where('m.tenantId = :tenantId', { tenantId })
+      .andWhere('m.slaDeadline >= :cutoff', { cutoff })
       .orderBy('m.packId', 'ASC')
       .addOrderBy('m.createdAt', 'DESC')
       .getMany();
