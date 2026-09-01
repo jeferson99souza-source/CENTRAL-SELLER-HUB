@@ -121,13 +121,15 @@ export class MlSyncService {
           `Token OK para seller=${account.sellerId}. Iniciando sync...`,
         );
 
-        // Mensagens têm prioridade: sincroniza PRIMEIRO, antes do sync pesado
-        // de pedidos/envios (que pode esbarrar no rate limit do ML e atropelar
-        // as mensagens se rodar tudo junto).
-        const messages = await this.syncMessages(account, accessToken);
-        const [complaints, questions, orders, returns] = await Promise.all([
-          this.syncComplaints(account, accessToken),
+        // Mensagens e perguntas primeiro (leves e voltadas ao atendimento),
+        // antes do sync pesado de pedidos/envios/devoluções — assim não são
+        // atropeladas pelo rate limit do ML.
+        const [messages, questions] = await Promise.all([
+          this.syncMessages(account, accessToken),
           this.syncQuestions(account, accessToken),
+        ]);
+        const [complaints, orders, returns] = await Promise.all([
+          this.syncComplaints(account, accessToken),
           this.syncOrders(account, accessToken),
           this.syncReturns(account, accessToken),
         ]);
@@ -671,11 +673,28 @@ export class MlSyncService {
   ): Promise<number> {
     let synced = 0;
     try {
-      const data = (await this.mlService.getUnansweredQuestions(
-        accessToken,
-        account.sellerId,
-      )) as { questions: MlQuestion[]; total: number };
-      const questions = data?.questions ?? [];
+      const questions: MlQuestion[] = [];
+      let offset = 0;
+      while (offset < 200) {
+        let page: MlQuestion[] = [];
+        try {
+          const data = (await this.mlService.getUnansweredQuestions(
+            accessToken,
+            account.sellerId,
+            offset,
+          )) as { questions: MlQuestion[]; total: number };
+          page = data?.questions ?? [];
+        } catch (pageErr) {
+          this.logger.warn(
+            `Perguntas: paginação parou no offset ${offset}: ${(pageErr as Error).message}`,
+          );
+          break;
+        }
+        if (!page.length) break;
+        questions.push(...page);
+        if (page.length < 50) break;
+        offset += 50;
+      }
       this.logger.log(
         `Perguntas: ${questions.length} para seller=${account.sellerId}`,
       );

@@ -259,10 +259,14 @@ export class MercadoLivreService {
   async getUnansweredQuestions(
     accessToken: string,
     sellerId: string,
+    offset = 0,
   ): Promise<unknown> {
-    this.logger.log(`Buscando perguntas sem resposta seller=${sellerId}`);
+    this.logger.log(
+      `Buscando perguntas sem resposta seller=${sellerId} offset=${offset}`,
+    );
+    // Mais novas primeiro (date_created DESC) para não ficar preso nas antigas
     return this.mlGet(
-      `/questions/search?seller_id=${sellerId}&status=UNANSWERED`,
+      `/questions/search?seller_id=${sellerId}&status=UNANSWERED&sort_fields=date_created&sort_types=DESC&limit=50&offset=${offset}`,
       accessToken,
     );
   }
