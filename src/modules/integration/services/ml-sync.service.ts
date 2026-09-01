@@ -920,9 +920,45 @@ export class MlSyncService {
             accessToken,
             String(orderId),
           )) as MlOrder;
-          if (order?.id) {
-            if (await this.upsertOrderFromMl(account, accessToken, order))
-              synced++;
+          if (!order?.id) continue;
+          if (await this.upsertOrderFromMl(account, accessToken, order))
+            synced++;
+
+          // Status do envio de DEVOLUÇÃO (leg de volta) — vem das claims
+          let returnStatus: string | undefined;
+          let returnTracking: string | undefined;
+          try {
+            const returns = (await this.mlService.getClaimReturns(
+              accessToken,
+              String(claim.id),
+            )) as { shipments?: { status?: string; tracking_number?: string }[] };
+            const shipment = returns?.shipments?.[0];
+            returnStatus = shipment?.status ?? undefined;
+            returnTracking = shipment?.tracking_number ?? undefined;
+            this.logger.warn(
+              `[devolucao] claim=${claim.id} order=${orderId} returnStatus=${returnStatus} raw=${JSON.stringify(returns).slice(0, 220)}`,
+            );
+          } catch (e) {
+            this.logger.warn(
+              `[devolucao] claim=${claim.id} sem returns: ${(e as Error).message}`,
+            );
+          }
+
+          // Marca o pedido como em devolução
+          const dbOrder = await this.orderRepo.findOne({
+            where: { externalId: String(orderId), tenantId: account.tenantId },
+          });
+          if (dbOrder) {
+            const isReturned = (returnStatus || '').toLowerCase() === 'delivered';
+            await this.orderRepo.update(dbOrder.id, {
+              returnStatus: returnStatus ?? dbOrder.returnStatus,
+              returnStartedAt:
+                dbOrder.returnStartedAt ?? new Date(claim.date_created),
+              returnedAt: isReturned
+                ? (dbOrder.returnedAt ?? new Date())
+                : dbOrder.returnedAt,
+              trackingNumber: returnTracking ?? dbOrder.trackingNumber,
+            });
           }
         } catch (e) {
           this.logger.warn(

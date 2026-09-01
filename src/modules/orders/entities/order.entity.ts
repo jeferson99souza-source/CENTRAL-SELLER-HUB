@@ -83,7 +83,18 @@ export class Order {
   @Column({ nullable: true })
   trackingNumber: string;
 
-  // Datas do fluxo de devolução (vêm do status_history do envio)
+  // ─── Fluxo de devolução (vem das claims/returns do ML) ───────────────────────
+  // Status do envio de DEVOLUÇÃO (leg de volta). Quando preenchido (ou
+  // returnStartedAt), o pedido está no fluxo de devolução.
+  @ApiProperty()
+  @Column({ nullable: true })
+  returnStatus: string;
+
+  // Quando a devolução foi aberta (para a regra dos 7 dias)
+  @ApiProperty()
+  @Column({ nullable: true, type: 'timestamp' })
+  returnStartedAt: Date;
+
   @ApiProperty()
   @Column({ nullable: true, type: 'timestamp' })
   notDeliveredAt: Date;
