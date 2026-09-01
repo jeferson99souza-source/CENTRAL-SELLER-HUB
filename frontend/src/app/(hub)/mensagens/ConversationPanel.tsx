@@ -35,6 +35,24 @@ function formatDay(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
+// Traduz os erros do Mercado Livre para algo compreensível
+function friendlyError(raw: string): string {
+  const r = raw.toLowerCase()
+  if (r.includes('blocked_by_cancelled_order'))
+    return 'Pedido cancelado — o Mercado Livre não permite responder mensagens de pedidos cancelados.'
+  if (r.includes('blocked_by_fulfillment'))
+    return 'Conversa bloqueada pelo Mercado Livre (pedido Full). Você só pode responder depois que o comprador escrever.'
+  if (r.includes('blocked_by_conversation_initiated_by_seller_limited'))
+    return 'O Mercado Livre limita mensagens iniciadas pelo vendedor nesta conversa.'
+  if (r.includes('blocked'))
+    return 'O Mercado Livre bloqueou o envio desta mensagem para este pedido.'
+  if (r.includes('forbidden') || r.includes('403'))
+    return 'O Mercado Livre não permitiu enviar esta mensagem (403).'
+  if (r.includes('unexpected exception parsing json'))
+    return 'Não foi possível enviar — tente novamente.'
+  return raw
+}
+
 export default function ConversationPanel({ selected, onClose }: Props) {
   const [thread, setThread] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
@@ -83,7 +101,7 @@ export default function ConversationPanel({ selected, onClose }: Props) {
         ?? errObj?.message         // mensagem principal
         ?? body?.message           // fallback NestJS padrão
         ?? `Erro ${res.status}`
-      setError(String(errMsg))
+      setError(friendlyError(String(errMsg)))
     } else {
       setSuccess(true)
       setText('')
