@@ -189,11 +189,13 @@ export class MlSyncService {
         `Mensagens: ${unreadPackIds.size} conversas com mensagem (não lidas) para seller=${account.sellerId}`,
       );
 
-      // 2) Busca pedidos recentes só para enriquecer nome do comprador/produto.
+      // 2) Busca alguns pedidos recentes só para enriquecer nome/produto.
+      //    As conversas COM mensagem já vêm da lista de não lidas acima; não
+      //    precisamos varrer centenas de packs (a maioria vem vazia/bloqueada).
       let offset = 0;
       let hasMore = true;
       const allOrders: MlOrder[] = [];
-      while (hasMore && offset < 200) {
+      while (hasMore && offset < 50) {
         const ordersData = (await this.mlService.getOrders(
           accessToken,
           account.sellerId,
@@ -740,7 +742,7 @@ export class MlSyncService {
       let offset = 0;
       const orders: MlOrder[] = [];
       // Últimos 30 dias para acompanhar a transição de envios/devoluções.
-      while (offset < 1000) {
+      while (offset < 300) {
         let page: MlOrder[] = [];
         try {
           const ordersData = (await this.mlService.getOrders(
