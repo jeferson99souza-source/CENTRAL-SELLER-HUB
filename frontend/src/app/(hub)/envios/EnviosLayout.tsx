@@ -45,7 +45,7 @@ const COLUMNS: {
   { key: 'transito',      label: 'Em trânsito',   icon: Send,          color: 'text-blue-600',   head: 'bg-blue-50' },
   { key: 'entregue',      label: 'Entregue',      icon: CheckCircle,   color: 'text-green-600',  head: 'bg-green-50' },
   { key: 'nao_entregue',  label: 'Não entregue',  icon: RotateCcw,     color: 'text-purple-600', head: 'bg-purple-50' },
-  { key: 'reclamacao',    label: 'Reclamações',   icon: Undo2,         color: 'text-pink-600',   head: 'bg-pink-50' },
+  { key: 'reclamacao',    label: 'Em devolução',  icon: Undo2,         color: 'text-pink-600',   head: 'bg-pink-50' },
   { key: 'nao_devolvido', label: 'Não devolvido', icon: AlertTriangle, color: 'text-red-600',    head: 'bg-red-50' },
 ]
 
