@@ -19,6 +19,7 @@ type DiagnoseResult = {
     tokenTest: { ok: boolean; nickname?: string; sellerId?: string; error?: string }
     unread?: { count: number | null; raw?: string }
     claims?: { count: number | null; raw?: string }
+    questions?: { count: number | null; raw?: string }
   }[]
 }
 
@@ -135,6 +136,17 @@ export default function DiagnoseButton() {
                       {acc.claims?.raw && (
                         <p className="text-[10px] text-gray-400 break-all">
                           claims: {acc.claims.raw}
+                        </p>
+                      )}
+                      {acc.questions && (
+                        <p>
+                          ❓ Perguntas sem resposta no ML:{' '}
+                          <strong>{acc.questions.count ?? '—'}</strong>
+                        </p>
+                      )}
+                      {acc.questions?.raw && (
+                        <p className="text-[10px] text-gray-400 break-all">
+                          perguntas: {acc.questions.raw}
                         </p>
                       )}
                     </>

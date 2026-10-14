@@ -97,6 +97,7 @@ export class MlSyncService {
   }> {
     const accounts = await this.accountRepo.find({
       where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+      order: { updatedAt: 'DESC' }, // a conexão mais recente primeiro
     });
 
     if (!accounts.length) {

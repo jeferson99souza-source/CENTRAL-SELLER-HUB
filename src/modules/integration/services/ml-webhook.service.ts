@@ -42,6 +42,7 @@ export class MlWebhookService {
 
     const account = await this.accountRepo.findOne({
       where: { sellerId, marketplace: 'mercadolivre', isActive: true },
+      order: { updatedAt: 'DESC' }, // sempre a conexão mais recente
     });
 
     if (!account) {

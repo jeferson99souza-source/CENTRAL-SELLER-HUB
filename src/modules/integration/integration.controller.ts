@@ -207,6 +207,7 @@ export class IntegrationController {
         };
         let unread: { count: number | null; raw?: string } = { count: null };
         let claims: { count: number | null; raw?: string } = { count: null };
+        let questions: { count: number | null; raw?: string } = { count: null };
         try {
           const accessToken = isExpired
             ? await this.mlService.refreshAccountToken(account)
@@ -252,6 +253,23 @@ export class IntegrationController {
           } catch (ce) {
             claims = { count: null, raw: `erro: ${(ce as Error).message}` };
           }
+
+          // Quantas perguntas sem resposta o ML diz que existem
+          try {
+            const q = (await this.mlService.getUnansweredQuestions(
+              accessToken,
+              account.sellerId,
+            )) as any;
+            const count =
+              q?.total ??
+              (Array.isArray(q?.questions) ? q.questions.length : null);
+            questions = {
+              count: typeof count === 'number' ? count : null,
+              raw: JSON.stringify(q).slice(0, 250),
+            };
+          } catch (qe) {
+            questions = { count: null, raw: `erro: ${(qe as Error).message}` };
+          }
         } catch (err) {
           tokenTest = { ok: false, error: (err as Error).message };
         }
@@ -268,6 +286,7 @@ export class IntegrationController {
           tokenTest,
           unread,
           claims,
+          questions,
         };
       }),
     );
