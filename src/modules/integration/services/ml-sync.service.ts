@@ -680,7 +680,10 @@ export class MlSyncService {
     try {
       const questions: MlQuestion[] = [];
       let offset = 0;
-      while (offset < 200) {
+      // Cobre TODAS as perguntas sem resposta. O ML nem sempre respeita a
+      // ordenação pedida, então paginar até o fim é o único jeito garantido
+      // de alcançar as mais recentes quando há acúmulo de antigas.
+      while (offset < 1000) {
         let page: MlQuestion[] = [];
         try {
           const data = (await this.mlService.getUnansweredQuestions(
