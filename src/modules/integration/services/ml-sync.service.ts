@@ -148,9 +148,20 @@ export class MlSyncService {
           `Conta ${account.sellerId} OK — msg=${messages} rec=${complaints} perguntas=${questions} pedidos=${orders}`,
         );
       } catch (err) {
-        const msg = `Conta seller=${account.sellerId}: ${(err as Error).message}`;
+        const message = (err as Error).message;
+        const msg = `Conta seller=${account.sellerId}: ${message}`;
         this.logger.error(`Erro ao sincronizar ${msg}`);
         errors.push(msg);
+
+        // Conexão morta (refresh token inválido): desativa para não competir
+        // com a conexão boa nem poluir os próximos syncs. O vendedor
+        // reconecta pela tela de Contas quando quiser usá-la de novo.
+        if (message.includes('expirou')) {
+          await this.accountRepo.update(account.id, { isActive: false });
+          this.logger.warn(
+            `Conta seller=${account.sellerId} desativada — precisa reconectar`,
+          );
+        }
       }
     }
 
@@ -680,9 +691,11 @@ export class MlSyncService {
     try {
       const questions: MlQuestion[] = [];
       let offset = 0;
-      // Cobre TODAS as perguntas sem resposta. O ML nem sempre respeita a
-      // ordenação pedida, então paginar até o fim é o único jeito garantido
-      // de alcançar as mais recentes quando há acúmulo de antigas.
+      // `listaCompleta` só fica true se percorrermos todas as páginas sem erro.
+      // Isso é CRÍTICO: se a busca falhar (ex: token morto de uma conexão
+      // antiga), a lista vem vazia — e fechar as pendentes com base nela
+      // apagaria todas as perguntas do vendedor.
+      let listaCompleta = true;
       while (offset < 1000) {
         let page: MlQuestion[] = [];
         try {
@@ -696,6 +709,7 @@ export class MlSyncService {
           this.logger.warn(
             `Perguntas: paginação parou no offset ${offset}: ${(pageErr as Error).message}`,
           );
+          listaCompleta = false;
           break;
         }
         if (!page.length) break;
@@ -704,23 +718,29 @@ export class MlSyncService {
         offset += 50;
       }
       this.logger.log(
-        `Perguntas: ${questions.length} para seller=${account.sellerId}`,
+        `Perguntas: ${questions.length} para seller=${account.sellerId} (lista completa: ${listaCompleta})`,
       );
 
-      // Marca como 'answered' qualquer pergunta no banco que não está mais na lista do ML
-      const mlIds = new Set(questions.map((q) => String(q.id)));
-      const dbPending = await this.questionRepo.find({
-        where: { tenantId: account.tenantId, status: 'unanswered' },
-      });
-      const toClose = dbPending.filter((q) => !mlIds.has(q.externalId));
-      if (toClose.length) {
-        await Promise.all(
-          toClose.map((q) =>
-            this.questionRepo.update(q.id, { status: 'answered' }),
-          ),
-        );
-        this.logger.log(
-          `Perguntas marcadas como respondidas (já não pendentes no ML): ${toClose.length}`,
+      // Só fecha pendentes quando a lista do ML veio completa e confiável.
+      if (listaCompleta) {
+        const mlIds = new Set(questions.map((q) => String(q.id)));
+        const dbPending = await this.questionRepo.find({
+          where: { tenantId: account.tenantId, status: 'unanswered' },
+        });
+        const toClose = dbPending.filter((q) => !mlIds.has(q.externalId));
+        if (toClose.length) {
+          await Promise.all(
+            toClose.map((q) =>
+              this.questionRepo.update(q.id, { status: 'answered' }),
+            ),
+          );
+          this.logger.log(
+            `Perguntas marcadas como respondidas (já não pendentes no ML): ${toClose.length}`,
+          );
+        }
+      } else {
+        this.logger.warn(
+          'Perguntas: lista incompleta — não vou fechar pendentes (evita apagar perguntas válidas)',
         );
       }
 
