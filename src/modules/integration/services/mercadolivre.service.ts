@@ -150,7 +150,28 @@ export class MercadoLivreService {
    * Renova o access_token usando o refresh_token criptografado armazenado.
    * Atualiza a conta com os novos tokens.
    */
+  /**
+   * Renovações em voo por conta. O refresh token do ML é de USO ÚNICO: se o
+   * sync e uma ação do usuário renovarem ao mesmo tempo, uma invalida a outra
+   * e a conta "quebra". Aqui todas as chamadas concorrentes compartilham a
+   * mesma renovação.
+   */
+  private readonly refreshInFlight = new Map<string, Promise<string>>();
+
   async refreshAccountToken(account: MarketplaceAccount): Promise<string> {
+    const running = this.refreshInFlight.get(account.id);
+    if (running) return running;
+
+    const promise = this.doRefreshAccountToken(account).finally(() => {
+      this.refreshInFlight.delete(account.id);
+    });
+    this.refreshInFlight.set(account.id, promise);
+    return promise;
+  }
+
+  private async doRefreshAccountToken(
+    account: MarketplaceAccount,
+  ): Promise<string> {
     const refreshToken = this.encryption.decrypt(account.refreshTokenEnc);
     const tokens = await this.exchangeRefreshToken(refreshToken);
 
@@ -487,7 +508,7 @@ export class MercadoLivreService {
       const err = await response.text();
       this.logger.error(`Erro ao renovar token: ${err}`);
       throw new UnauthorizedException(
-        'Falha ao renovar token do Mercado Livre',
+        'Sua conexão com o Mercado Livre expirou. Vá em Contas e clique em "Reconectar" para autorizar novamente.',
       );
     }
 
