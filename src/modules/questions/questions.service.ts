@@ -57,6 +57,7 @@ export class QuestionsService {
 
     const account = await this.accountRepo.findOne({
       where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+      order: { updatedAt: 'DESC' }, // sempre a conexão mais recente
     });
     if (!account)
       throw new NotFoundException('Conta Mercado Livre não encontrada.');
@@ -117,6 +118,7 @@ export class QuestionsService {
 
     const account = await this.accountRepo.findOne({
       where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+      order: { updatedAt: 'DESC' }, // sempre a conexão mais recente
     });
 
     if (account && question.buyerId) {

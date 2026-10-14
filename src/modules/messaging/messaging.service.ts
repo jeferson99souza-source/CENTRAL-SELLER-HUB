@@ -151,6 +151,7 @@ export class MessagingService {
       account ??
       (await this.accountRepo.findOne({
         where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+        order: { updatedAt: 'DESC' }, // sempre a conexão mais recente
       }));
     if (!resolvedAccount)
       throw new NotFoundException('Conta Mercado Livre não encontrada.');

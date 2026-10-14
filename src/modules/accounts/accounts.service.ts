@@ -96,7 +96,21 @@ export class AccountsService {
     account.tokenExpiresAt = dto.tokenExpiresAt;
     account.isActive = true;
 
-    return this.accountRepo.save(account);
+    const saved = await this.accountRepo.save(account);
+
+    // Mantém só a conta recém-conectada ativa para este marketplace/tenant.
+    // Sem isso, conexões antigas (de outra empresa ou outro seller) continuam
+    // ativas e o sistema pode escolher uma delas, com refresh token já morto.
+    await this.accountRepo
+      .createQueryBuilder()
+      .update()
+      .set({ isActive: false })
+      .where('tenant_id = :tenantId', { tenantId: dto.tenantId })
+      .andWhere('marketplace = :marketplace', { marketplace: dto.marketplace })
+      .andWhere('id != :id', { id: saved.id })
+      .execute();
+
+    return saved;
   }
 
   /**
