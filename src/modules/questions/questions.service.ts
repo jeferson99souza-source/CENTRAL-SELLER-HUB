@@ -11,6 +11,7 @@ import { Question } from './entities/question.entity';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { MercadoLivreService } from '../integration/services/mercadolivre.service';
 import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
+import { KnowledgeService } from '../automation/knowledge.service';
 
 @Injectable()
 export class QuestionsService {
@@ -24,6 +25,7 @@ export class QuestionsService {
     private readonly mlService: MercadoLivreService,
     private readonly encryption: TokenEncryptionService,
     private readonly config: ConfigService,
+    private readonly knowledge: KnowledgeService,
   ) {}
 
   findAll(tenantId: string, status?: string): Promise<Question[]> {
@@ -76,6 +78,15 @@ export class QuestionsService {
     await this.questionRepo.update(question.id, {
       answer: text.trim(),
       status: 'answered',
+    });
+
+    // Aprende com a resposta do vendedor (base de conhecimento da IA)
+    await this.knowledge.capture({
+      tenantId,
+      source: 'pergunta',
+      customerText: question.text,
+      sellerAnswer: text.trim(),
+      itemTitle: question.itemTitle,
     });
 
     return this.questionRepo.findOne({
@@ -142,21 +153,14 @@ export class QuestionsService {
     });
     if (!question) throw new NotFoundException('Pergunta não encontrada.');
 
-    const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
-    if (apiKey) {
-      try {
-        const suggestion = await this.callClaude(
-          apiKey,
-          question.text,
-          question.itemTitle,
-        );
-        return { suggestion };
-      } catch (err) {
-        this.logger.warn(
-          `IA falhou, usando template: ${(err as Error).message}`,
-        );
-      }
-    }
+    // IA no estilo do vendedor: usa as respostas anteriores dele como exemplo
+    const suggestion = await this.knowledge.suggest({
+      tenantId,
+      customerText: question.text,
+      itemTitle: question.itemTitle,
+      source: 'pergunta',
+    });
+    if (suggestion) return { suggestion };
 
     // Fallback: template baseado em palavras-chave
     return { suggestion: this.templateAnswer(question.text) };
@@ -180,31 +184,4 @@ export class QuestionsService {
     return 'Olá! Obrigado pelo seu interesse. Pode nos enviar mais detalhes sobre sua dúvida? Estamos aqui para ajudar e garantir a melhor experiência de compra!';
   }
 
-  private async callClaude(
-    apiKey: string,
-    question: string,
-    itemTitle: string | null,
-  ): Promise<string> {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-5-haiku-20241022',
-        max_tokens: 300,
-        messages: [
-          {
-            role: 'user',
-            content: `Você é um vendedor do Mercado Livre. Responda a pergunta do comprador de forma amigável e profissional em português BR. Seja conciso (máximo 2 frases).${itemTitle ? `\nProduto: ${itemTitle}` : ''}\nPergunta: ${question}`,
-          },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`Claude API ${res.status}`);
-    const body = await res.json();
-    return (body.content?.[0]?.text ?? '').trim();
-  }
 }

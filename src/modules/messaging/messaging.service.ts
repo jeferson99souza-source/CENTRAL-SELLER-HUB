@@ -11,6 +11,7 @@ import { Message } from './entities/message.entity';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { MercadoLivreService } from '../integration/services/mercadolivre.service';
 import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
+import { KnowledgeService } from '../automation/knowledge.service';
 
 @Injectable()
 export class MessagingService {
@@ -23,7 +24,35 @@ export class MessagingService {
     private readonly accountRepo: Repository<MarketplaceAccount>,
     private readonly mlService: MercadoLivreService,
     private readonly encryption: TokenEncryptionService,
+    private readonly knowledge: KnowledgeService,
   ) {}
+
+  /**
+   * Sugere uma resposta para a mensagem, no estilo das respostas anteriores
+   * do próprio vendedor (base de conhecimento).
+   */
+  async aiSuggest(
+    tenantId: string,
+    messageId: string,
+  ): Promise<{ suggestion: string }> {
+    const message = await this.messageRepo.findOne({
+      where: { id: messageId, tenantId },
+    });
+    if (!message) throw new NotFoundException('Mensagem não encontrada.');
+
+    const suggestion = await this.knowledge.suggest({
+      tenantId,
+      customerText: message.content,
+      itemTitle: message.itemTitle,
+      source: 'mensagem',
+    });
+
+    return {
+      suggestion:
+        suggestion ??
+        'Olá! Obrigado pelo contato. Já estamos verificando e retornamos em breve com a solução.',
+    };
+  }
 
   async findByOrder(
     tenantId: string,
@@ -163,6 +192,15 @@ export class MessagingService {
       { id: messageId, tenantId },
       { status: 'replied', repliedAt: new Date() },
     );
+
+    // Aprende com a resposta do vendedor (base de conhecimento da IA)
+    await this.knowledge.capture({
+      tenantId,
+      source: 'mensagem',
+      customerText: message.content,
+      sellerAnswer: text.trim(),
+      itemTitle: message.itemTitle,
+    });
 
     // Salva a resposta do vendedor localmente para aparecer no chat na hora.
     // externalId 'local-...' é adotado pelo sync quando a mensagem real chega do ML.

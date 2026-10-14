@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { IntegrationModule } from '../integration/integration.module';
+import { AutomationModule } from '../automation/automation.module';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { MessagingController } from './messaging.controller';
 import { MessagingService } from './messaging.service';
@@ -13,6 +14,7 @@ import { Message } from './entities/message.entity';
     TypeOrmModule.forFeature([Message, MarketplaceAccount]),
     AuthModule,
     IntegrationModule,
+    AutomationModule,
   ],
   controllers: [MessagingController],
   providers: [MessagingService, MessagingGateway],

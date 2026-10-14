@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Send, ShoppingBag, X, Truck } from 'lucide-react'
+import { Send, ShoppingBag, X, Truck, Sparkles } from 'lucide-react'
 import type { Message } from '@/lib/api'
+import { aiSuggestMessage } from '@/app/actions'
 import { LogisticBadge } from './MessagesLayout'
 
 const SHIPPING_MAP: Record<string, { label: string; color: string }> = {
@@ -58,6 +59,7 @@ export default function ConversationPanel({ selected, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -78,6 +80,23 @@ export default function ConversationPanel({ selected, onClose }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [thread])
+
+  async function handleSuggest() {
+    setSuggesting(true)
+    setError('')
+    try {
+      const res = await aiSuggestMessage(selected.id)
+      if ('suggestion' in res && res.suggestion) {
+        setText(res.suggestion)
+      } else if ('error' in res && res.error) {
+        setError(res.error)
+      }
+    } catch {
+      setError('Não foi possível gerar a sugestão')
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   async function handleSend() {
     if (!text.trim()) return
@@ -168,6 +187,17 @@ export default function ConversationPanel({ selected, onClose }: Props) {
       <div className="px-4 py-3 border-t border-gray-100 bg-white space-y-2">
         {error && <p className="text-xs text-red-500 px-1">{error}</p>}
         {success && <p className="text-xs text-green-600 px-1">Mensagem enviada!</p>}
+        <div className="flex justify-start">
+          <button
+            onClick={handleSuggest}
+            disabled={suggesting || sending}
+            className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:text-purple-700 disabled:opacity-50 px-2 py-1 rounded-lg hover:bg-purple-50 transition-colors"
+            title="Gera uma sugestão no seu estilo, com base nas suas respostas anteriores"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${suggesting ? 'animate-pulse' : ''}`} />
+            {suggesting ? 'Gerando sugestão...' : 'Sugerir com IA'}
+          </button>
+        </div>
         <div className="flex gap-2">
           <input
             value={text}

@@ -27,6 +27,7 @@ import { Message } from './modules/messaging/entities/message.entity';
 import { Complaint } from './modules/complaints/entities/complaint.entity';
 import { Question } from './modules/questions/entities/question.entity';
 import { Order } from './modules/orders/entities/order.entity';
+import { AnswerTemplate } from './modules/automation/entities/answer-template.entity';
 
 @Module({
   imports: [
@@ -48,7 +49,7 @@ import { Order } from './modules/orders/entities/order.entity';
           return {
             type: 'postgres',
             url: databaseUrl,
-            entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order],
+            entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order, AnswerTemplate],
             synchronize: shouldSync,
             logging: !isProduction,
             ssl: sslConfig,
@@ -62,7 +63,7 @@ import { Order } from './modules/orders/entities/order.entity';
           username: config.get('DB_USER', 'postgres'),
           password: config.get('DB_PASSWORD', 'postgres'),
           database: config.get('DB_NAME', 'central_seller'),
-          entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order],
+          entities: [User, Company, MarketplaceAccount, Message, Complaint, Question, Order, AnswerTemplate],
           synchronize: shouldSync,
           logging: !isProduction,
           ssl: sslConfig,

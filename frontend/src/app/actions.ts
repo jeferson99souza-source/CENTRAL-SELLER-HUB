@@ -237,6 +237,25 @@ export async function aiSuggestQuestion(questionId: string) {
   }
 }
 
+export async function aiSuggestMessage(messageId: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  try {
+    const res = await fetch(`${API_URL}/messaging/${messageId}/ai-suggest`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      const body = await res.json()
+      return { suggestion: body.suggestion as string }
+    }
+    return { error: await parseApiError(res, 'Não foi possível gerar a sugestão') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
+}
+
 export async function answerQuestion(questionId: string, text: string) {
   const store = await cookies()
   const token = store.get('token')?.value

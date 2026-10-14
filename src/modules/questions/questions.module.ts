@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '../auth/auth.module';
 import { IntegrationModule } from '../integration/integration.module';
+import { AutomationModule } from '../automation/automation.module';
 import { Question } from './entities/question.entity';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { QuestionsService } from './questions.service';
@@ -14,6 +15,7 @@ import { QuestionsController } from './questions.controller';
     ConfigModule,
     AuthModule,
     IntegrationModule,
+    AutomationModule,
   ],
   controllers: [QuestionsController],
   providers: [QuestionsService],

@@ -71,6 +71,14 @@ export class MessagingController {
     return this.messagingService.replyToMessage(tenantId, id, text);
   }
 
+  @ApiOperation({
+    summary: 'Sugerir resposta com IA (no estilo das respostas do vendedor)',
+  })
+  @Post(':id/ai-suggest')
+  aiSuggest(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.messagingService.aiSuggest(tenantId, id);
+  }
+
   @ApiOperation({ summary: 'Marcar mensagem como respondida' })
   @Patch(':id/replied')
   markAsReplied(@TenantId() tenantId: string, @Param('id') id: string) {
