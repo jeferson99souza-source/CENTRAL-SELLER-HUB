@@ -113,6 +113,47 @@ export class MessagingService {
     return list.slice(0, 200);
   }
 
+  /**
+   * Limpeza de mensagens antigas.
+   *
+   * A data real da mensagem não é o createdAt (que é quando o sync salvou),
+   * e sim `slaDeadline - 48h` (o SLA é definido a partir do recebimento).
+   * Por isso o corte é feito sobre o slaDeadline.
+   *
+   * Com `confirm: false` apenas conta (prévia). Só apaga com `confirm: true`.
+   */
+  async cleanupOld(
+    tenantId: string,
+    before: Date,
+    confirm = false,
+  ): Promise<{ count: number; deleted: boolean; before: string }> {
+    // mensagem recebida antes de `before`  ⇔  slaDeadline < before + 48h
+    const cutoff = new Date(before.getTime() + 48 * 60 * 60 * 1000);
+
+    const count = await this.messageRepo
+      .createQueryBuilder('m')
+      .where('m.tenantId = :tenantId', { tenantId })
+      .andWhere('m.slaDeadline < :cutoff', { cutoff })
+      .getCount();
+
+    if (!confirm) {
+      return { count, deleted: false, before: before.toISOString() };
+    }
+
+    await this.messageRepo
+      .createQueryBuilder()
+      .delete()
+      .from(Message)
+      .where('tenant_id = :tenantId', { tenantId })
+      .andWhere('sla_deadline < :cutoff', { cutoff })
+      .execute();
+
+    this.logger.warn(
+      `Limpeza: ${count} mensagens anteriores a ${before.toISOString()} removidas (tenant=${tenantId})`,
+    );
+    return { count, deleted: true, before: before.toISOString() };
+  }
+
   async findByPack(tenantId: string, packId: string): Promise<Message[]> {
     return this.messageRepo.find({
       where: { tenantId, packId },

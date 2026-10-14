@@ -237,6 +237,29 @@ export async function aiSuggestQuestion(questionId: string) {
   }
 }
 
+/**
+ * Conta (confirm=false) ou apaga (confirm=true) mensagens recebidas antes de
+ * `before` (data ISO, ex: '2026-10-01').
+ */
+export async function cleanupOldMessages(before: string, confirm = false) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  try {
+    const res = await fetch(
+      `${API_URL}/messaging/cleanup?before=${encodeURIComponent(before)}&confirm=${confirm}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (res.ok) {
+      const body = await res.json()
+      return { count: body.count as number, deleted: body.deleted as boolean }
+    }
+    return { error: await parseApiError(res, 'Não foi possível limpar as mensagens') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
+}
+
 export async function aiSuggestMessage(messageId: string) {
   const store = await cookies()
   const token = store.get('token')?.value

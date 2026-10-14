@@ -1,9 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquare, Clock, User, Package } from 'lucide-react'
+import { MessageSquare, Clock, User, Package, Trash2 } from 'lucide-react'
 import type { Message } from '@/lib/api'
+import { cleanupOldMessages } from '@/app/actions'
 import ConversationPanel from './ConversationPanel'
+
+/** Corte padrão: tudo que chegou antes de outubro/2026 */
+const CUTOFF_PADRAO = '2026-10-01'
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'bg-orange-100 text-orange-600',
@@ -68,6 +72,43 @@ type Props = { messages: Message[] }
 
 export default function MessagesLayout({ messages }: Props) {
   const [selected, setSelected] = useState<Message | null>(null)
+  const [cleaning, setCleaning] = useState(false)
+
+  async function handleCleanup() {
+    setCleaning(true)
+    try {
+      // 1) Prévia: quantas seriam apagadas
+      const preview = await cleanupOldMessages(CUTOFF_PADRAO, false)
+      if ('error' in preview && preview.error) {
+        alert(preview.error)
+        return
+      }
+      const total = 'count' in preview ? preview.count : 0
+      if (!total) {
+        alert('Não há mensagens anteriores a outubro/2026 para apagar.')
+        return
+      }
+
+      // 2) Confirmação explícita (ação irreversível)
+      const ok = confirm(
+        `Apagar ${total} mensagem(ns) recebidas ANTES de 01/10/2026?\n\n` +
+          'Isso remove o histórico dessas conversas do sistema (não afeta o Mercado Livre).\n' +
+          'Esta ação NÃO pode ser desfeita.',
+      )
+      if (!ok) return
+
+      // 3) Apaga
+      const res = await cleanupOldMessages(CUTOFF_PADRAO, true)
+      if ('error' in res && res.error) {
+        alert(res.error)
+        return
+      }
+      alert(`${'count' in res ? res.count : 0} mensagem(ns) apagadas.`)
+      window.location.reload()
+    } finally {
+      setCleaning(false)
+    }
+  }
 
   if (!messages.length) {
     return (
@@ -80,7 +121,20 @@ export default function MessagesLayout({ messages }: Props) {
   }
 
   return (
-    <div className={`flex gap-4 ${selected ? 'h-[calc(100vh-180px)]' : ''}`}>
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          onClick={handleCleanup}
+          disabled={cleaning}
+          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm disabled:opacity-60"
+          title="Apaga do sistema as mensagens recebidas antes de outubro/2026"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          {cleaning ? 'Verificando...' : 'Limpar mensagens antigas'}
+        </button>
+      </div>
+
+      <div className={`flex gap-4 ${selected ? 'h-[calc(100vh-180px)]' : ''}`}>
       {/* Lista */}
       <div className={`space-y-3 ${selected ? 'w-80 shrink-0 overflow-y-auto' : 'w-full'}`}>
         {messages.map((m) => (
@@ -131,6 +185,7 @@ export default function MessagesLayout({ messages }: Props) {
           />
         </div>
       )}
+      </div>
     </div>
   )
 }

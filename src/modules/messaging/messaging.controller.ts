@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Param,
@@ -69,6 +70,24 @@ export class MessagingController {
     @Body('text') text: string,
   ) {
     return this.messagingService.replyToMessage(tenantId, id, text);
+  }
+
+  @ApiOperation({
+    summary: 'Contar/apagar mensagens antigas (confirm=false apenas conta)',
+  })
+  @ApiQuery({ name: 'before', description: 'Data ISO. Ex: 2026-10-01' })
+  @ApiQuery({ name: 'confirm', required: false })
+  @Post('cleanup')
+  cleanupOld(
+    @TenantId() tenantId: string,
+    @Query('before') before: string,
+    @Query('confirm') confirm?: string,
+  ) {
+    const date = new Date(before);
+    if (isNaN(date.getTime())) {
+      throw new BadRequestException('Data inválida. Use o formato 2026-10-01.');
+    }
+    return this.messagingService.cleanupOld(tenantId, date, confirm === 'true');
   }
 
   @ApiOperation({
