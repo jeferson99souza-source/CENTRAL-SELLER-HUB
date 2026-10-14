@@ -66,6 +66,23 @@ export class AccountsService {
   }
 
   /**
+   * Desconecta (desativa) uma conta de marketplace. Não apaga o histórico —
+   * só tira a conta de circulação para o sistema parar de usá-la.
+   */
+  async disconnectAccount(
+    tenantId: string,
+    accountId: string,
+  ): Promise<{ success: boolean }> {
+    const account = await this.accountRepo.findOne({
+      where: { id: accountId, tenantId },
+    });
+    if (!account) throw new NotFoundException('Conta não encontrada');
+
+    await this.accountRepo.update(account.id, { isActive: false });
+    return { success: true };
+  }
+
+  /**
    * Cria ou atualiza a conta de marketplace.
    * Identificador único: tenantId + companyId + marketplace + sellerId.
    */

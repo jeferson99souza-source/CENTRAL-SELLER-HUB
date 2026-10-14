@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { Building2, Plus, CheckCircle, XCircle, AlertCircle, X, Loader2, RefreshCw, ShoppingCart, Package } from 'lucide-react'
-import { createCompany, getMLConnectUrl } from '@/app/actions'
+import { createCompany, getMLConnectUrl, disconnectAccount } from '@/app/actions'
 import { type Company } from '@/lib/api'
 
 type Props = {
@@ -22,6 +22,8 @@ function MarketplaceBadge({
   onConnect,
   connecting,
   comingSoon,
+  onDisconnect,
+  disconnecting,
 }: {
   label: string
   logo: React.ReactNode
@@ -29,6 +31,8 @@ function MarketplaceBadge({
   onConnect?: () => void
   connecting?: boolean
   comingSoon?: boolean
+  onDisconnect?: () => void
+  disconnecting?: boolean
 }) {
   const connected = !!account
 
@@ -79,6 +83,16 @@ function MarketplaceBadge({
           ) : (
             <><Plus className="w-3 h-3" /> Conectar</>
           )}
+        </button>
+      )}
+
+      {connected && onDisconnect && (
+        <button
+          onClick={onDisconnect}
+          disabled={disconnecting}
+          className="text-[11px] font-semibold text-red-500 hover:text-red-700 hover:underline disabled:opacity-60"
+        >
+          {disconnecting ? 'Desconectando...' : 'Desconectar'}
         </button>
       )}
 
@@ -219,6 +233,7 @@ export default function EmpresasPanel({ companies: initial, mlConnected, mlError
   const [companies, setCompanies] = useState<Company[]>(initial)
   const [showModal, setShowModal] = useState(false)
   const [connectingId, setConnectingId] = useState<string | null>(null)
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   useEffect(() => {
@@ -249,6 +264,27 @@ export default function EmpresasPanel({ companies: initial, mlConnected, mlError
     if (res.authUrl) {
       window.location.href = res.authUrl
     }
+  }
+
+  async function handleDisconnect(accountId: string, sellerName?: string) {
+    const nome = sellerName ? ` "${sellerName}"` : ''
+    if (
+      !confirm(
+        `Desconectar a conta${nome}? Ela deixa de ser usada pelo sistema. O histórico é mantido e você pode reconectar depois.`,
+      )
+    )
+      return
+
+    setDisconnectingId(accountId)
+    const res = await disconnectAccount(accountId)
+    setDisconnectingId(null)
+
+    if ('error' in res && res.error) {
+      setToast({ type: 'error', message: res.error })
+      return
+    }
+    setToast({ type: 'success', message: 'Conta desconectada' })
+    window.location.reload()
   }
 
   async function refreshCompanies() {
@@ -348,6 +384,12 @@ export default function EmpresasPanel({ companies: initial, mlConnected, mlError
                     setConnectingId(company.id + '_ml')
                     handleConnectML(company.id)
                   }}
+                  disconnecting={disconnectingId === mlAccount?.id}
+                  onDisconnect={
+                    mlAccount
+                      ? () => handleDisconnect(mlAccount.id, mlAccount.sellerName)
+                      : undefined
+                  }
                 />
                 <MarketplaceBadge
                   label="Shopee"

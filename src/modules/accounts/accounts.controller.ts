@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
@@ -32,6 +40,12 @@ export class AccountsController {
   }
 
   @ApiOperation({ summary: 'Listar contas de marketplace' })
+  @ApiOperation({ summary: 'Desconectar (desativar) uma conta de marketplace' })
+  @Delete('marketplace-accounts/:id')
+  disconnectAccount(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.accountsService.disconnectAccount(tenantId, id);
+  }
+
   @Get('marketplace-accounts')
   findAllAccounts(@TenantId() tenantId: string) {
     return this.accountsService.findAllAccounts(tenantId);

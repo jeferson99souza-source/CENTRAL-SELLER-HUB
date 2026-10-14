@@ -332,6 +332,22 @@ export async function createCompany(formData: FormData) {
   }
 }
 
+export async function disconnectAccount(accountId: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  try {
+    const res = await fetch(
+      `${API_URL}/accounts/marketplace-accounts/${accountId}`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (res.ok) return { success: true }
+    return { error: await parseApiError(res, 'Não foi possível desconectar a conta') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
+}
+
 export async function getMLConnectUrl(companyId: string) {
   const store = await cookies()
   const token = store.get('token')?.value
