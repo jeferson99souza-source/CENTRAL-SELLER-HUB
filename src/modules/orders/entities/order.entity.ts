@@ -25,6 +25,12 @@ export class Order {
   @Column({ default: 'mercadolivre' })
   marketplace: string;
 
+  // Loja de origem (várias lojas por marketplace, uma por CNPJ).
+  // Vazio nos pedidos salvos antes desta coluna existir.
+  @ApiProperty()
+  @Column({ nullable: true })
+  marketplaceAccountId: string;
+
   @ApiProperty()
   @Column({ nullable: true })
   packId: string;

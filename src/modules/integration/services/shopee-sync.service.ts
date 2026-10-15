@@ -248,6 +248,7 @@ export class ShopeeSyncService {
     const dados = {
       tenantId: account.tenantId,
       marketplace: 'shopee',
+      marketplaceAccountId: account.id,
       externalId: detalhe.order_sn,
       buyerId: detalhe.buyer_user_id ? String(detalhe.buyer_user_id) : undefined,
       buyerName: detalhe.buyer_username ?? undefined,
@@ -285,6 +286,7 @@ export class ShopeeSyncService {
         trackingNumber: dados.trackingNumber ?? existe.trackingNumber,
         buyerName: dados.buyerName ?? existe.buyerName,
         itemTitle: dados.itemTitle ?? existe.itemTitle,
+        marketplaceAccountId: existe.marketplaceAccountId ?? account.id,
       });
       return;
     }
@@ -356,6 +358,7 @@ export class ShopeeSyncService {
     const dados = {
       tenantId: account.tenantId,
       marketplace: 'shopee',
+      marketplaceAccountId: account.id,
       externalId: devolucao.return_sn,
       orderId: devolucao.order_sn ?? undefined,
       buyerName: devolucao.user?.username ?? undefined,
@@ -380,6 +383,7 @@ export class ShopeeSyncService {
         itemTitle: dados.itemTitle ?? existe.itemTitle,
         buyerName: dados.buyerName ?? existe.buyerName,
         resolvedAt: dados.resolvedAt ?? existe.resolvedAt,
+        marketplaceAccountId: existe.marketplaceAccountId ?? account.id,
       });
     } else {
       await this.complaintRepo.save(this.complaintRepo.create(dados));

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { MarketplaceAccount } from '../../accounts/entities/marketplace-account.entity';
 import { Message } from '../../messaging/entities/message.entity';
 import { Complaint } from '../../complaints/entities/complaint.entity';
@@ -565,6 +565,9 @@ export class MlSyncService {
             if (returnData.returnTrackingCode)
               updates.returnTrackingCode = returnData.returnTrackingCode;
           }
+          // Reclamação antiga sem loja de origem: a loja que a encontrou é a dona
+          if (!exists.marketplaceAccountId)
+            updates.marketplaceAccountId = account.id;
           if (Object.keys(updates).length) {
             await this.complaintRepo.update(exists.id, updates);
             this.logger.log(
@@ -616,6 +619,7 @@ export class MlSyncService {
           tenantId: account.tenantId,
           externalId,
           marketplace: 'mercadolivre',
+          marketplaceAccountId: account.id,
           reason,
           status: claim.status === 'closed' ? 'closed' : 'open',
           priority: 'urgent',
@@ -721,11 +725,54 @@ export class MlSyncService {
         `Perguntas: ${questions.length} para seller=${account.sellerId} (lista completa: ${listaCompleta})`,
       );
 
+      const mlIds = new Set(questions.map((q) => String(q.id)));
+
+      // Perguntas antigas, salvas antes de existir a coluna da loja, ficam
+      // sem dono. Se aparecem na lista DESTA loja, são dela: marca.
+      if (mlIds.size) {
+        await this.questionRepo.update(
+          {
+            tenantId: account.tenantId,
+            marketplaceAccountId: IsNull(),
+            externalId: In([...mlIds]),
+          },
+          { marketplaceAccountId: account.id },
+        );
+      }
+
       // Só fecha pendentes quando a lista do ML veio completa e confiável.
       if (listaCompleta) {
-        const mlIds = new Set(questions.map((q) => String(q.id)));
+        // CRÍTICO com várias lojas: só fecha perguntas DESTA loja. Antes a
+        // busca pegava as pendentes do tenant inteiro, e o sync da loja B
+        // marcaria como respondidas todas as perguntas da loja A.
+        //
+        // As sem dono só entram quando existe UMA loja ML ativa — aí não há
+        // dúvida de que são dela. Com várias, ficam até alguma loja as
+        // reivindicar acima.
+        const lojasAtivas = await this.accountRepo.count({
+          where: {
+            tenantId: account.tenantId,
+            marketplace: 'mercadolivre',
+            isActive: true,
+          },
+        });
         const dbPending = await this.questionRepo.find({
-          where: { tenantId: account.tenantId, status: 'unanswered' },
+          where: [
+            {
+              tenantId: account.tenantId,
+              status: 'unanswered',
+              marketplaceAccountId: account.id,
+            },
+            ...(lojasAtivas === 1
+              ? [
+                  {
+                    tenantId: account.tenantId,
+                    status: 'unanswered',
+                    marketplaceAccountId: IsNull(),
+                  },
+                ]
+              : []),
+          ],
         });
         const toClose = dbPending.filter((q) => !mlIds.has(q.externalId));
         if (toClose.length) {
@@ -784,6 +831,7 @@ export class MlSyncService {
           tenantId: account.tenantId,
           externalId,
           marketplace: 'mercadolivre',
+          marketplaceAccountId: account.id,
           itemId: q.item_id,
           itemTitle,
           buyerId: String(q.from?.id ?? ''),
@@ -885,6 +933,8 @@ export class MlSyncService {
         trackingNumber: ship.trackingNumber ?? exists.trackingNumber,
         notDeliveredAt: ship.notDeliveredAt ?? exists.notDeliveredAt,
         returnedAt: ship.returnedAt ?? exists.returnedAt,
+        // Pedido antigo sem loja de origem: a loja que o encontrou é a dona
+        marketplaceAccountId: exists.marketplaceAccountId ?? account.id,
       });
       return false;
     }
@@ -898,6 +948,7 @@ export class MlSyncService {
       tenantId: account.tenantId,
       externalId,
       marketplace: 'mercadolivre',
+      marketplaceAccountId: account.id,
       packId: order.pack_id ? String(order.pack_id) : undefined,
       buyerId: String(order.buyer?.id ?? ''),
       buyerName,

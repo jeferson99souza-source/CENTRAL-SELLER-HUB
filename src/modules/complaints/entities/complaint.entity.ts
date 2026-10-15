@@ -27,6 +27,12 @@ export class Complaint {
   @Column()
   marketplace: string;
 
+  // Loja de origem (várias lojas por marketplace, uma por CNPJ).
+  // Vazio nas reclamações salvas antes desta coluna existir.
+  @ApiProperty()
+  @Column({ nullable: true })
+  marketplaceAccountId: string;
+
   @ApiProperty()
   @Column({ nullable: true })
   orderId: string;

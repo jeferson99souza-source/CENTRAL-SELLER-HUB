@@ -29,6 +29,48 @@ export class QuestionsService {
     private readonly knowledge: KnowledgeService,
   ) {}
 
+  /**
+   * Loja dona da pergunta. Com várias lojas, responder pela "conta mais
+   * recente" mandaria a resposta pela loja errada — o ML recusaria, ou pior,
+   * responderia em nome de outro CNPJ.
+   *
+   * Perguntas antigas não têm loja gravada: para elas vale a conta ML ativa
+   * mais recente, que era o comportamento de antes.
+   */
+  private async contaDaPergunta(
+    tenantId: string,
+    question: Question,
+  ): Promise<MarketplaceAccount> {
+    if (question.marketplaceAccountId) {
+      const conta = await this.accountRepo.findOne({
+        where: { id: question.marketplaceAccountId, tenantId },
+      });
+      if (!conta)
+        throw new NotFoundException('Loja desta pergunta não encontrada.');
+      if (!conta.isActive)
+        throw new BadRequestException(
+          `A loja ${conta.sellerName ?? ''} está desconectada. Reconecte-a em Contas para responder.`,
+        );
+      return conta;
+    }
+
+    const conta = await this.accountRepo.findOne({
+      where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+      order: { updatedAt: 'DESC' },
+    });
+    if (!conta)
+      throw new NotFoundException('Conta Mercado Livre não encontrada.');
+    return conta;
+  }
+
+  private async tokenDaConta(conta: MarketplaceAccount): Promise<string> {
+    const isExpired =
+      !conta.tokenExpiresAt || conta.tokenExpiresAt < new Date();
+    return isExpired
+      ? this.mlService.refreshAccountToken(conta)
+      : this.encryption.decrypt(conta.accessTokenEnc);
+  }
+
   findAll(tenantId: string, status?: string): Promise<Question[]> {
     const where: any = { tenantId };
     if (status) where.status = status;
@@ -56,18 +98,8 @@ export class QuestionsService {
     });
     if (!question) throw new NotFoundException('Pergunta não encontrada.');
 
-    const account = await this.accountRepo.findOne({
-      where: { tenantId, marketplace: 'mercadolivre', isActive: true },
-      order: { updatedAt: 'DESC' }, // sempre a conexão mais recente
-    });
-    if (!account)
-      throw new NotFoundException('Conta Mercado Livre não encontrada.');
-
-    const isExpired =
-      !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
-    const accessToken = isExpired
-      ? await this.mlService.refreshAccountToken(account)
-      : this.encryption.decrypt(account.accessTokenEnc);
+    const account = await this.contaDaPergunta(tenantId, question);
+    const accessToken = await this.tokenDaConta(account);
 
     // Envia resposta para a API do ML (expõe o motivo real se o ML recusar)
     try {
@@ -150,25 +182,22 @@ export class QuestionsService {
       };
     }
 
-    const account = await this.accountRepo.findOne({
-      where: { tenantId, marketplace: 'mercadolivre', isActive: true },
-      order: { updatedAt: 'DESC' },
-    });
-    if (!account)
-      throw new NotFoundException('Conta Mercado Livre não encontrada.');
-
-    const isExpired =
-      !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
-    const accessToken = isExpired
-      ? await this.mlService.refreshAccountToken(account)
-      : this.encryption.decrypt(account.accessTokenEnc);
-
     const batch = pending.slice(0, batchSize);
     let deleted = 0;
     let failed = 0;
 
+    // Cada pergunta é apagada pela loja dona dela. O token de cada loja é
+    // buscado uma vez só por lote.
+    const tokens = new Map<string, string>();
+
     for (const q of batch) {
       try {
+        const conta = await this.contaDaPergunta(tenantId, q);
+        let accessToken = tokens.get(conta.id);
+        if (!accessToken) {
+          accessToken = await this.tokenDaConta(conta);
+          tokens.set(conta.id, accessToken);
+        }
         await this.mlService.deleteQuestion(accessToken, q.externalId);
         await this.questionRepo.update(q.id, { status: 'closed_unanswered' });
         deleted++;
@@ -215,18 +244,11 @@ export class QuestionsService {
     });
     if (!question) throw new NotFoundException('Pergunta não encontrada.');
 
-    const account = await this.accountRepo.findOne({
-      where: { tenantId, marketplace: 'mercadolivre', isActive: true },
-      order: { updatedAt: 'DESC' }, // sempre a conexão mais recente
-    });
-
-    if (account && question.buyerId) {
+    if (question.buyerId) {
       try {
-        const isExpired =
-          !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
-        const accessToken = isExpired
-          ? await this.mlService.refreshAccountToken(account)
-          : this.encryption.decrypt(account.accessTokenEnc);
+        // Bloqueia na loja onde a pergunta foi feita
+        const account = await this.contaDaPergunta(tenantId, question);
+        const accessToken = await this.tokenDaConta(account);
         await this.mlService.blockBuyer(
           accessToken,
           account.sellerId,

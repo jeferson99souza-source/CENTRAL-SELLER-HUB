@@ -25,6 +25,13 @@ export class Question {
   @Column({ default: 'mercadolivre' })
   marketplace: string;
 
+  // Loja de origem. Com várias lojas no mesmo marketplace, é o que garante
+  // que a resposta saia pela loja certa e que o sync de uma loja não feche as
+  // perguntas de outra. Vazio nas perguntas salvas antes desta coluna existir.
+  @ApiProperty()
+  @Column({ nullable: true })
+  marketplaceAccountId: string;
+
   @ApiProperty()
   @Column({ nullable: true })
   itemId: string;

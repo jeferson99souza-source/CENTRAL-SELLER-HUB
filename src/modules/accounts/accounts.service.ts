@@ -115,15 +115,31 @@ export class AccountsService {
 
     const saved = await this.accountRepo.save(account);
 
-    // Mantém só a conta recém-conectada ativa para este marketplace/tenant.
-    // Sem isso, conexões antigas (de outra empresa ou outro seller) continuam
-    // ativas e o sistema pode escolher uma delas, com refresh token já morto.
+    // Uma conta ativa por marketplace EM CADA EMPRESA (CNPJ).
+    //
+    // Antes a trava valia para o tenant inteiro, o que impedia ter lojas de
+    // CNPJs diferentes conectadas ao mesmo tempo. Dentro da mesma empresa ela
+    // continua: reconectar com outro login desliga o anterior, que é o caso
+    // da conta duplicada com refresh token morto que motivou a trava.
+    await this.accountRepo
+      .createQueryBuilder()
+      .update()
+      .set({ isActive: false })
+      .where('tenant_id = :tenantId', { tenantId: dto.tenantId })
+      .andWhere('company_id = :companyId', { companyId: dto.companyId })
+      .andWhere('marketplace = :marketplace', { marketplace: dto.marketplace })
+      .andWhere('id != :id', { id: saved.id })
+      .execute();
+
+    // A MESMA loja conectada por engano em outra empresa: fica só a conexão
+    // nova, senão ela seria sincronizada duas vezes.
     await this.accountRepo
       .createQueryBuilder()
       .update()
       .set({ isActive: false })
       .where('tenant_id = :tenantId', { tenantId: dto.tenantId })
       .andWhere('marketplace = :marketplace', { marketplace: dto.marketplace })
+      .andWhere('seller_id = :sellerId', { sellerId: dto.sellerId })
       .andWhere('id != :id', { id: saved.id })
       .execute();
 
