@@ -1,5 +1,6 @@
 import { User } from 'lucide-react'
 import { logout } from '@/app/actions'
+import ThemeToggle from '@/components/ThemeToggle'
 import SideNav from './SideNav'
 
 export const dynamic = 'force-dynamic'
@@ -18,8 +19,9 @@ export default function HubLayout({ children }: { children: React.ReactNode }) {
         {/* Nav items — componente cliente para active state */}
         <SideNav />
 
-        {/* Logout */}
-        <div className="px-4 pb-5 pt-2 border-t border-gray-100">
+        {/* Tema + logout */}
+        <div className="px-4 pb-5 pt-2 border-t border-gray-100 space-y-1">
+          <ThemeToggle />
           <form action={logout}>
             <button
               type="submit"
