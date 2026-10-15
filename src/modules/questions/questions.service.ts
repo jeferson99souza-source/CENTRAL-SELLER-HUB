@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -68,12 +69,20 @@ export class QuestionsService {
       ? await this.mlService.refreshAccountToken(account)
       : this.encryption.decrypt(account.accessTokenEnc);
 
-    // Envia resposta para a API do ML
-    await this.mlService.answerQuestion(
-      accessToken,
-      Number(question.externalId),
-      text.trim(),
-    );
+    // Envia resposta para a API do ML (expõe o motivo real se o ML recusar)
+    try {
+      await this.mlService.answerQuestion(
+        accessToken,
+        Number(question.externalId),
+        text.trim(),
+      );
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Falha ao responder pergunta: ${detail}`);
+      throw new InternalServerErrorException(
+        detail || 'Falha ao responder no Mercado Livre',
+      );
+    }
 
     // Atualiza no banco
     await this.questionRepo.update(question.id, {
