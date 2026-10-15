@@ -422,6 +422,28 @@ export async function getMLConnectUrl(companyId: string) {
   }
 }
 
+export async function getShopeeConnectUrl(companyId: string) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  try {
+    const res = await fetch(`${API_URL}/integration/shopee/connect?companyId=${companyId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+    if (res.ok) {
+      const body = await res.json()
+      if (body?.data?.authUrl) {
+        return { authUrl: body.data.authUrl as string }
+      }
+      return { error: 'Resposta inválida do servidor ao gerar o link de conexão' }
+    }
+    return { error: await parseApiError(res, 'Não foi possível gerar o link de conexão com a Shopee') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
+}
+
 export async function diagnoseML() {
   const store = await cookies()
   const token = store.get('token')?.value

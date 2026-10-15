@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Param,
   Query,
   UseGuards,
   Redirect,
@@ -22,6 +23,7 @@ import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/tenant.decorator';
 import { MercadoLivreService } from './services/mercadolivre.service';
 import { MlSyncService } from './services/ml-sync.service';
+import { ShopeeService } from './services/shopee.service';
 import { ConnectAccountDto } from './dto/connect-account.dto';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
@@ -35,6 +37,7 @@ export class IntegrationController {
   constructor(
     private readonly mlService: MercadoLivreService,
     private readonly mlSyncService: MlSyncService,
+    private readonly shopeeService: ShopeeService,
     private readonly encryption: TokenEncryptionService,
     private readonly config: ConfigService,
     @InjectRepository(MarketplaceAccount)
@@ -301,6 +304,160 @@ export class IntegrationController {
         tip: allOk
           ? 'Tokens válidos. Chame POST /integration/mercadolivre/sync para sincronizar os dados.'
           : 'Um ou mais tokens estão inválidos. Reconecte a conta via /integration/mercadolivre/connect.',
+      },
+    };
+  }
+
+  // ─── Shopee ─────────────────────────────────────────────────────────────────
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiOperation({
+    summary: 'Iniciar conexão com a Shopee',
+    description:
+      'Assina a chamada com HMAC-SHA256, salva o state e devolve a URL onde o vendedor autoriza a loja.',
+  })
+  @ApiQuery({ name: 'companyId', description: 'UUID da empresa a conectar' })
+  @Get('shopee/connect')
+  async connectShopee(
+    @TenantId() tenantId: string,
+    @Query() dto: ConnectAccountDto,
+  ) {
+    const url = await this.shopeeService.buildAuthUrl(tenantId, dto.companyId);
+    return { data: { authUrl: url } };
+  }
+
+  /**
+   * Retorno da autorização da Shopee.
+   *
+   * O state vem no CAMINHO (não na query) porque a Shopee acrescenta `code` e
+   * `shop_id` ao redirect por conta própria.
+   */
+  @ApiOperation({ summary: 'Callback de autorização da Shopee' })
+  @Redirect('', 302)
+  @Get('shopee/callback/:state')
+  async callbackShopee(
+    @Param('state') state: string,
+    @Query('code') code?: string,
+    @Query('shop_id') shopId?: string,
+  ) {
+    try {
+      const account = await this.shopeeService.handleCallback(
+        code ?? '',
+        shopId ?? '',
+        state,
+      );
+      this.logger.log(
+        `Conta Shopee conectada: shop=${account.sellerId} name=${account.sellerName}`,
+      );
+      return {
+        url: `${this.frontendUrl}/contas?shopeeConnected=${encodeURIComponent(account.sellerName)}`,
+      };
+    } catch (err) {
+      const msg = (err as Error).message ?? 'Falha ao conectar a loja Shopee';
+      this.logger.error(`Erro no callback Shopee: ${msg}`);
+      return {
+        url: `${this.frontendUrl}/contas?shopeeError=${encodeURIComponent(msg)}`,
+      };
+    }
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiOperation({
+    summary: 'Diagnosticar conexão com a Shopee',
+    description:
+      'Mostra se as credenciais do app estão configuradas, a validade dos tokens e faz um teste real na API.',
+  })
+  @Get('shopee/diagnose')
+  async diagnoseShopee(@TenantId() tenantId: string) {
+    if (!this.shopeeService.isConfigured) {
+      return {
+        data: {
+          ok: false,
+          configured: false,
+          message:
+            'As credenciais do app Shopee não estão configuradas. Cadastre SHOPEE_PARTNER_ID e SHOPEE_PARTNER_KEY (obtidos em open.shopee.com) nas variáveis de ambiente do servidor.',
+          accounts: [],
+        },
+      };
+    }
+
+    const accounts = await this.accountRepo.find({
+      where: { tenantId, marketplace: 'shopee', isActive: true },
+    });
+
+    if (!accounts.length) {
+      return {
+        data: {
+          ok: false,
+          configured: true,
+          message:
+            'Nenhuma loja Shopee conectada. Conecte uma loja na aba Contas.',
+          accounts: [],
+        },
+      };
+    }
+
+    const results = await Promise.all(
+      accounts.map(async (account) => {
+        const now = new Date();
+        const isExpired =
+          !account.tokenExpiresAt || account.tokenExpiresAt < now;
+        const minutesUntilExpiry = account.tokenExpiresAt
+          ? Math.round(
+              (account.tokenExpiresAt.getTime() - now.getTime()) / 60000,
+            )
+          : null;
+
+        let tokenTest: {
+          ok: boolean;
+          shopName?: string;
+          region?: string;
+          status?: string;
+          error?: string;
+        };
+        try {
+          const accessToken =
+            await this.shopeeService.getValidAccessToken(account);
+          const info = await this.shopeeService.testConnection(
+            accessToken,
+            account.sellerId,
+          );
+          tokenTest = {
+            ok: true,
+            shopName: info.shop_name,
+            region: info.region,
+            status: info.status,
+          };
+        } catch (err) {
+          tokenTest = { ok: false, error: (err as Error).message };
+        }
+
+        return {
+          accountId: account.id,
+          shopId: account.sellerId,
+          sellerName: account.sellerName,
+          companyId: account.companyId,
+          lastSyncAt: account.lastSyncAt,
+          tokenExpiresAt: account.tokenExpiresAt,
+          tokenExpired: isExpired,
+          minutesUntilExpiry,
+          tokenTest,
+        };
+      }),
+    );
+
+    const allOk = results.every((r) => r.tokenTest.ok);
+    return {
+      data: {
+        ok: allOk,
+        configured: true,
+        totalAccounts: accounts.length,
+        accounts: results,
+        tip: allOk
+          ? 'Conexão com a Shopee funcionando.'
+          : 'Reconecte a loja na aba Contas. Atenção: se ninguém sincronizar por 30 dias, a Shopee invalida a autorização.',
       },
     };
   }

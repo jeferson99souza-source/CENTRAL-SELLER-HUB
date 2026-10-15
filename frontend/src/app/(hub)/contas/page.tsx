@@ -6,7 +6,12 @@ export const dynamic = 'force-dynamic'
 export default async function ContasPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ mlConnected?: string; mlError?: string }>
+  searchParams?: Promise<{
+    mlConnected?: string
+    mlError?: string
+    shopeeConnected?: string
+    shopeeError?: string
+  }>
 }) {
   const params = searchParams ? (await searchParams) : {}
   const result = await getCompanies()
@@ -17,6 +22,8 @@ export default async function ContasPage({
       companies={companies}
       mlConnected={params?.mlConnected}
       mlError={params?.mlError}
+      shopeeConnected={params?.shopeeConnected}
+      shopeeError={params?.shopeeError}
     />
   )
 }

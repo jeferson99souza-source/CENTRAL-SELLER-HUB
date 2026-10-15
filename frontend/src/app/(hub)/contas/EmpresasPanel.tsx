@@ -2,13 +2,15 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { Building2, Plus, CheckCircle, XCircle, AlertCircle, X, Loader2, RefreshCw, ShoppingCart, Package } from 'lucide-react'
-import { createCompany, getMLConnectUrl, disconnectAccount } from '@/app/actions'
+import { createCompany, getMLConnectUrl, getShopeeConnectUrl, disconnectAccount } from '@/app/actions'
 import { type Company } from '@/lib/api'
 
 type Props = {
   companies: Company[]
   mlConnected?: string
   mlError?: string
+  shopeeConnected?: string
+  shopeeError?: string
 }
 
 const ML_LOGO = (
@@ -229,7 +231,13 @@ function NovaEmpresaModal({
   )
 }
 
-export default function EmpresasPanel({ companies: initial, mlConnected, mlError }: Props) {
+export default function EmpresasPanel({
+  companies: initial,
+  mlConnected,
+  mlError,
+  shopeeConnected,
+  shopeeError,
+}: Props) {
   const [companies, setCompanies] = useState<Company[]>(initial)
   const [showModal, setShowModal] = useState(false)
   const [connectingId, setConnectingId] = useState<string | null>(null)
@@ -244,8 +252,14 @@ export default function EmpresasPanel({ companies: initial, mlConnected, mlError
     } else if (mlError) {
       setToast({ type: 'error', message: `Erro ao conectar ML: ${mlError}` })
       window.history.replaceState({}, '', '/contas')
+    } else if (shopeeConnected) {
+      setToast({ type: 'success', message: `Shopee conectada: ${shopeeConnected}` })
+      window.history.replaceState({}, '', '/contas')
+    } else if (shopeeError) {
+      setToast({ type: 'error', message: `Erro ao conectar Shopee: ${shopeeError}` })
+      window.history.replaceState({}, '', '/contas')
     }
-  }, [mlConnected, mlError])
+  }, [mlConnected, mlError, shopeeConnected, shopeeError])
 
   useEffect(() => {
     if (!toast) return
@@ -256,6 +270,19 @@ export default function EmpresasPanel({ companies: initial, mlConnected, mlError
   async function handleConnectML(companyId: string) {
     setConnectingId(companyId)
     const res = await getMLConnectUrl(companyId)
+    setConnectingId(null)
+    if ('error' in res && res.error) {
+      setToast({ type: 'error', message: res.error })
+      return
+    }
+    if (res.authUrl) {
+      window.location.href = res.authUrl
+    }
+  }
+
+  async function handleConnectShopee(companyId: string) {
+    setConnectingId(companyId + '_shopee')
+    const res = await getShopeeConnectUrl(companyId)
     setConnectingId(null)
     if ('error' in res && res.error) {
       setToast({ type: 'error', message: res.error })
@@ -395,7 +422,14 @@ export default function EmpresasPanel({ companies: initial, mlConnected, mlError
                   label="Shopee"
                   logo={<ShoppingCart className="w-3.5 h-3.5 text-orange-500" />}
                   account={shopeeAccount}
-                  comingSoon
+                  connecting={connectingId === company.id + '_shopee'}
+                  onConnect={() => handleConnectShopee(company.id)}
+                  disconnecting={disconnectingId === shopeeAccount?.id}
+                  onDisconnect={
+                    shopeeAccount
+                      ? () => handleDisconnect(shopeeAccount.id, shopeeAccount.sellerName)
+                      : undefined
+                  }
                 />
                 <MarketplaceBadge
                   label="Amazon"
