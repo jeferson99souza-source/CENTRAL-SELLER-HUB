@@ -63,6 +63,7 @@ export default function ConversationPanel({ selected, onClose }: Props) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const sendingRef = useRef(false)
 
   useEffect(() => {
     setLoading(true)
@@ -100,35 +101,46 @@ export default function ConversationPanel({ selected, onClose }: Props) {
 
   async function handleSend() {
     if (!text.trim()) return
+    // Trava imediata: o estado `sending` só atualiza no próximo render, então
+    // teclas Enter repetidas disparariam vários envios do mesmo texto.
+    if (sendingRef.current) return
+    sendingRef.current = true
     setSending(true)
     setError('')
     setSuccess(false)
 
-    const res = await fetch(`/api/reply/${selected.id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim() }),
-    })
+    const enviado = text.trim()
+    try {
+      const res = await fetch(`/api/reply/${selected.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: enviado }),
+      })
 
-    setSending(false)
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      // body.error é {code, message, details, path, timestamp} — extrair mensagem legível
-      const errObj = body?.error
-      const errMsg: string =
-        errObj?.details?.message   // detalhe do ML (ex: "ML 403: …")
-        ?? errObj?.message         // mensagem principal
-        ?? body?.message           // fallback NestJS padrão
-        ?? `Erro ${res.status}`
-      setError(friendlyError(String(errMsg)))
-    } else {
-      setSuccess(true)
-      setText('')
-      // Recarrega o thread
-      fetch(`/api/thread/${selected.packId}`)
-        .then((r) => r.json())
-        .then((data) => setThread(Array.isArray(data) ? data : thread))
-        .catch(() => {})
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        // body.error é {code, message, details, path, timestamp} — extrair mensagem legível
+        const errObj = body?.error
+        const errMsg: string =
+          errObj?.details?.message   // detalhe do ML (ex: "ML 403: …")
+          ?? errObj?.message         // mensagem principal
+          ?? body?.message           // fallback NestJS padrão
+          ?? `Erro ${res.status}`
+        setError(friendlyError(String(errMsg)))
+      } else {
+        setSuccess(true)
+        setText('')
+        // Recarrega o thread
+        const data = await fetch(`/api/thread/${selected.packId}`)
+          .then((r) => r.json())
+          .catch(() => null)
+        if (Array.isArray(data)) setThread(data)
+      }
+    } catch {
+      setError('Não foi possível enviar — verifique sua conexão e tente novamente.')
+    } finally {
+      setSending(false)
+      sendingRef.current = false
     }
   }
 
@@ -202,7 +214,13 @@ export default function ConversationPanel({ selected, onClose }: Props) {
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault() // evita o envio duplicado pelo form/tecla repetida
+                handleSend()
+              }
+            }}
+            disabled={sending}
             placeholder="Digite sua resposta..."
             className="flex-1 text-sm px-3 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-400"
           />

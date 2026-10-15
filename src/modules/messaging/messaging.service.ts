@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { Message } from './entities/message.entity';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { MercadoLivreService } from '../integration/services/mercadolivre.service';
@@ -16,6 +16,13 @@ import { KnowledgeService } from '../automation/knowledge.service';
 @Injectable()
 export class MessagingService {
   private readonly logger = new Logger(MessagingService.name);
+
+  /**
+   * Envios em andamento, por conversa+texto. Se o mesmo texto for enviado duas
+   * vezes para a mesma conversa ao mesmo tempo (duplo clique, Enter repetido,
+   * reenvio do navegador), a segunda chamada espera a primeira e não reenvia.
+   */
+  private readonly sendInFlight = new Map<string, Promise<void>>();
 
   constructor(
     @InjectRepository(Message)
@@ -155,9 +162,21 @@ export class MessagingService {
   }
 
   async findByPack(tenantId: string, packId: string): Promise<Message[]> {
-    return this.messageRepo.find({
+    const rows = await this.messageRepo.find({
       where: { tenantId, packId },
       order: { createdAt: 'ASC' },
+    });
+
+    // Esconde repetições seguidas do mesmo texto do mesmo remetente — eram
+    // cliques duplicados salvos antes da correção. Nada é apagado do banco.
+    return rows.filter((m, i) => {
+      const anterior = rows[i - 1];
+      if (!anterior) return true;
+      return !(
+        anterior.sender === m.sender &&
+        anterior.content === m.content &&
+        !!m.content
+      );
     });
   }
 
@@ -168,6 +187,10 @@ export class MessagingService {
     );
   }
 
+  /**
+   * Responde ao cliente, garantindo que o mesmo texto não seja enviado duas
+   * vezes para a mesma conversa (nem no ML, nem no chat daqui).
+   */
   async replyToMessage(
     tenantId: string,
     messageId: string,
@@ -177,10 +200,51 @@ export class MessagingService {
       throw new BadRequestException('Texto da resposta não pode ser vazio.');
     }
 
+    const key = `${tenantId}:${messageId}:${text.trim()}`;
+
+    // 1) Já existe um envio igual em andamento? Espera e não reenvia.
+    const running = this.sendInFlight.get(key);
+    if (running) {
+      this.logger.warn(`Envio duplicado ignorado (em andamento): ${key}`);
+      return running;
+    }
+
+    const promise = this.doReplyToMessage(tenantId, messageId, text).finally(
+      () => this.sendInFlight.delete(key),
+    );
+    this.sendInFlight.set(key, promise);
+    return promise;
+  }
+
+  private async doReplyToMessage(
+    tenantId: string,
+    messageId: string,
+    text: string,
+  ): Promise<void> {
     const message = await this.messageRepo.findOne({
       where: { id: messageId, tenantId },
     });
     if (!message) throw new NotFoundException('Mensagem não encontrada.');
+
+    // 2) O mesmo texto já foi enviado nesta conversa nos últimos 2 minutos?
+    //    Então foi clique repetido — não reenvia para o cliente.
+    if (message.packId) {
+      const recente = await this.messageRepo.findOne({
+        where: {
+          tenantId,
+          packId: message.packId,
+          sender: 'vendedor',
+          content: text.trim(),
+          createdAt: MoreThan(new Date(Date.now() - 2 * 60 * 1000)),
+        },
+      });
+      if (recente) {
+        this.logger.warn(
+          `Envio duplicado ignorado (já enviado há pouco): pack=${message.packId}`,
+        );
+        return;
+      }
+    }
 
     // Tenta pelo ID direto; se não achar (mensagem antiga sem marketplaceAccountId), busca qualquer conta ML ativa
     const account = message.marketplaceAccountId

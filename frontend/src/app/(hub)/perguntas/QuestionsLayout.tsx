@@ -124,11 +124,11 @@ export default function QuestionsLayout({ questions: initial }: Props) {
           alert(`Parou com erro: ${res.error}\nApagadas até aqui: ${apagadas}`)
           break
         }
-        if (!('deleted' in res)) break
-        apagadas += res.deleted
-        falhas += res.failed
-        restantes = res.remaining
-        if (res.deleted === 0) break // nada avançou — evita loop infinito
+        const feitas = 'deleted' in res ? (res.deleted ?? 0) : 0
+        apagadas += feitas
+        falhas += 'failed' in res ? (res.failed ?? 0) : 0
+        restantes = 'remaining' in res ? (res.remaining ?? 0) : 0
+        if (feitas === 0) break // nada avançou — evita loop infinito
       }
 
       setRoboStatus(null)
