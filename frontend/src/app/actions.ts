@@ -218,6 +218,35 @@ export async function blockBuyer(questionId: string) {
   }
 }
 
+/**
+ * ROBÔ: apaga NO MERCADO LIVRE as perguntas sem resposta anteriores a `before`.
+ * confirm=false apenas conta. Processa em lotes — chame de novo enquanto
+ * `remaining` for maior que zero.
+ */
+export async function bulkDeleteOldQuestions(before: string, confirm = false) {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  try {
+    const res = await fetch(
+      `${API_URL}/questions/bulk-delete?before=${encodeURIComponent(before)}&confirm=${confirm}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+    )
+    if (res.ok) {
+      const body = await res.json()
+      return {
+        total: body.total as number,
+        deleted: body.deleted as number,
+        failed: body.failed as number,
+        remaining: body.remaining as number,
+      }
+    }
+    return { error: await parseApiError(res, 'Não foi possível apagar as perguntas') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
+}
+
 export async function aiSuggestQuestion(questionId: string) {
   const store = await cookies()
   const token = store.get('token')?.value

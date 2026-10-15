@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Question } from './entities/question.entity';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
@@ -96,6 +96,96 @@ export class QuestionsService {
   }
 
   // ─── Dispensar pergunta (oculta localmente, não responde no ML) ──────────────
+  /**
+   * ROBÔ: apaga no Mercado Livre as perguntas sem resposta anteriores a uma
+   * data, uma a uma (com pausa, respeitando o limite da API).
+   *
+   * IRREVERSÍVEL — a pergunta some também para o comprador.
+   * - `confirm: false` apenas conta (prévia), não apaga nada.
+   * - Processa no máximo `batchSize` por chamada, para dar feedback e permitir
+   *   parar no meio. Retorna quantas ainda restam.
+   *
+   * A data real da pergunta é `slaDeadline - 12h` (o SLA é criado a partir
+   * dela), por isso o corte é feito sobre o slaDeadline.
+   */
+  async bulkDeleteOldInML(
+    tenantId: string,
+    before: Date,
+    confirm = false,
+    batchSize = 40,
+  ): Promise<{
+    total: number;
+    deleted: number;
+    failed: number;
+    remaining: number;
+    confirmed: boolean;
+  }> {
+    const cutoff = new Date(before.getTime() + 12 * 60 * 60 * 1000);
+
+    const pending = await this.questionRepo.find({
+      where: {
+        tenantId,
+        status: 'unanswered',
+        slaDeadline: LessThan(cutoff),
+      },
+      order: { slaDeadline: 'ASC' }, // as mais antigas primeiro
+    });
+
+    if (!confirm) {
+      return {
+        total: pending.length,
+        deleted: 0,
+        failed: 0,
+        remaining: pending.length,
+        confirmed: false,
+      };
+    }
+
+    const account = await this.accountRepo.findOne({
+      where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+      order: { updatedAt: 'DESC' },
+    });
+    if (!account)
+      throw new NotFoundException('Conta Mercado Livre não encontrada.');
+
+    const isExpired =
+      !account.tokenExpiresAt || account.tokenExpiresAt < new Date();
+    const accessToken = isExpired
+      ? await this.mlService.refreshAccountToken(account)
+      : this.encryption.decrypt(account.accessTokenEnc);
+
+    const batch = pending.slice(0, batchSize);
+    let deleted = 0;
+    let failed = 0;
+
+    for (const q of batch) {
+      try {
+        await this.mlService.deleteQuestion(accessToken, q.externalId);
+        await this.questionRepo.update(q.id, { status: 'closed_unanswered' });
+        deleted++;
+      } catch (err) {
+        failed++;
+        this.logger.warn(
+          `Não foi possível apagar a pergunta ${q.externalId}: ${(err as Error).message}`,
+        );
+      }
+      // pausa entre as chamadas para não estourar o limite do ML
+      await new Promise((r) => setTimeout(r, 300));
+    }
+
+    this.logger.warn(
+      `Robô de exclusão: ${deleted} apagadas, ${failed} falharam (tenant=${tenantId})`,
+    );
+
+    return {
+      total: pending.length,
+      deleted,
+      failed,
+      remaining: pending.length - deleted,
+      confirmed: true,
+    };
+  }
+
   async dismissQuestion(tenantId: string, questionId: string): Promise<void> {
     const question = await this.questionRepo.findOne({
       where: { id: questionId, tenantId },

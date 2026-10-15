@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -69,6 +70,29 @@ export class QuestionsController {
   @ApiOperation({ summary: 'Bloquear comprador no ML e dispensar pergunta' })
   blockBuyer(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.questionsService.blockBuyer(tenantId, id);
+  }
+
+  @ApiOperation({
+    summary:
+      'ROBÔ: apaga no ML as perguntas sem resposta anteriores a uma data (confirm=false apenas conta)',
+  })
+  @ApiQuery({ name: 'before', description: 'Data ISO. Ex: 2026-10-01' })
+  @ApiQuery({ name: 'confirm', required: false })
+  @Post('bulk-delete')
+  bulkDelete(
+    @TenantId() tenantId: string,
+    @Query('before') before: string,
+    @Query('confirm') confirm?: string,
+  ) {
+    const date = new Date(before);
+    if (isNaN(date.getTime())) {
+      throw new BadRequestException('Data inválida. Use o formato 2026-10-01.');
+    }
+    return this.questionsService.bulkDeleteOldInML(
+      tenantId,
+      date,
+      confirm === 'true',
+    );
   }
 
   @Post(':id/ai-suggest')

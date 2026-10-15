@@ -348,6 +348,26 @@ export class MercadoLivreService {
   }
 
   /**
+   * Apaga uma pergunta no Mercado Livre — mesma ação do botão "excluir" do
+   * painel do vendedor. IRREVERSÍVEL: some também para o comprador.
+   */
+  async deleteQuestion(
+    accessToken: string,
+    questionId: string,
+  ): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/questions/${questionId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      this.logger.error(`Erro ao apagar pergunta ${questionId}: ${err}`);
+      throw new Error(`ML ${response.status}: ${err}`);
+    }
+    this.logger.log(`Pergunta ${questionId} apagada no ML`);
+  }
+
+  /**
    * Testa se o token está válido fazendo uma chamada ao /users/me.
    * Retorna os dados do usuário logado ou lança exceção se inválido.
    */
