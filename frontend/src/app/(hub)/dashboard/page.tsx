@@ -4,6 +4,7 @@ import { apiFetch, type KPIs } from '@/lib/api'
 import { AlertCircle, MessageSquare, ShoppingBag, Clock } from 'lucide-react'
 import SyncButton from './SyncButton'
 import DiagnoseButton from './DiagnoseButton'
+import ShopeeDiagnoseButton from './ShopeeDiagnoseButton'
 
 async function KPICards() {
   const kpis = await apiFetch<KPIs>('/dashboard/kpis?period=30d')
@@ -95,6 +96,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <DiagnoseButton />
+          <ShopeeDiagnoseButton />
           <SyncButton />
         </div>
       </div>

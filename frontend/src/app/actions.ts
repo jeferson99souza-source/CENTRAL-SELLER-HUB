@@ -462,6 +462,25 @@ export async function getShopeeConnectUrl(companyId: string) {
   }
 }
 
+export async function diagnoseShopee() {
+  const store = await cookies()
+  const token = store.get('token')?.value
+  if (!token) return { error: 'Não autorizado' }
+  try {
+    const res = await fetch(`${API_URL}/integration/shopee/diagnose`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+    if (res.ok) {
+      const body = await res.json()
+      return { data: body.data }
+    }
+    return { error: await parseApiError(res, 'Não foi possível diagnosticar a Shopee') }
+  } catch (err) {
+    return { error: networkError(err) }
+  }
+}
+
 export async function diagnoseML() {
   const store = await cookies()
   const token = store.get('token')?.value

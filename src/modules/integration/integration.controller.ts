@@ -439,6 +439,15 @@ export class IntegrationController {
           status?: string;
           error?: string;
         };
+
+        // Cada área usa uma permissão separada no app do open.shopee.com.
+        // Testar uma por uma diz exatamente qual está faltando, em vez de um
+        // "deu erro" genérico no meio do sync.
+        type Teste = { ok: boolean; count?: number; error?: string };
+        let pedidos: Teste | null = null;
+        let devolucoes: Teste | null = null;
+        let chat: Teste | null = null;
+
         try {
           const accessToken =
             await this.shopeeService.getValidAccessToken(account);
@@ -452,6 +461,43 @@ export class IntegrationController {
             region: info.region,
             status: info.status,
           };
+
+          const agora = Math.floor(Date.now() / 1000);
+          const seteDias = agora - 7 * 86400;
+
+          const [p, d, c] = await Promise.allSettled([
+            this.shopeeService.getOrderList(accessToken, account.sellerId, {
+              timeFrom: seteDias,
+              timeTo: agora,
+              pageSize: 100,
+            }),
+            this.shopeeService.getReturnList(accessToken, account.sellerId, {
+              createTimeFrom: seteDias,
+              createTimeTo: agora,
+              pageSize: 100,
+            }),
+            this.shopeeService.getConversationList(
+              accessToken,
+              account.sellerId,
+              { pageSize: 50 },
+            ),
+          ]);
+
+          pedidos =
+            p.status === 'fulfilled'
+              ? { ok: true, count: p.value.response?.order_list?.length ?? 0 }
+              : { ok: false, error: (p.reason as Error).message };
+          devolucoes =
+            d.status === 'fulfilled'
+              ? { ok: true, count: d.value.response?.return?.length ?? 0 }
+              : { ok: false, error: (d.reason as Error).message };
+          chat =
+            c.status === 'fulfilled'
+              ? {
+                  ok: true,
+                  count: c.value.response?.conversations?.length ?? 0,
+                }
+              : { ok: false, error: (c.reason as Error).message };
         } catch (err) {
           tokenTest = { ok: false, error: (err as Error).message };
         }
@@ -466,20 +512,28 @@ export class IntegrationController {
           tokenExpired: isExpired,
           minutesUntilExpiry,
           tokenTest,
+          pedidos,
+          devolucoes,
+          chat,
         };
       }),
     );
 
-    const allOk = results.every((r) => r.tokenTest.ok);
+    const tokensOk = results.every((r) => r.tokenTest.ok);
+    const permissoesOk = results.every(
+      (r) => r.pedidos?.ok && r.devolucoes?.ok && r.chat?.ok,
+    );
     return {
       data: {
-        ok: allOk,
+        ok: tokensOk && permissoesOk,
         configured: true,
         totalAccounts: accounts.length,
         accounts: results,
-        tip: allOk
-          ? 'Conexão com a Shopee funcionando.'
-          : 'Reconecte a loja na aba Contas. Atenção: se ninguém sincronizar por 30 dias, a Shopee invalida a autorização.',
+        tip: !tokensOk
+          ? 'Reconecte a loja na aba Contas. Atenção: se ninguém sincronizar por 30 dias, a Shopee invalida a autorização.'
+          : !permissoesOk
+            ? 'A loja conecta, mas falta permissão em alguma área. Habilite-a no app em open.shopee.com e reconecte a loja.'
+            : 'Conexão com a Shopee funcionando em todas as áreas.',
       },
     };
   }
