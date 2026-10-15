@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { HelpCircle, Clock, User, Package, Send, X, Trash2, UserX, Sparkles, Loader2 } from 'lucide-react'
 import type { Question } from '@/lib/api'
 import { answerQuestion, dismissQuestion, blockBuyer, aiSuggestQuestion, bulkDeleteOldQuestions } from '@/app/actions'
+import {
+  MarketplaceTag,
+  MarketplaceFilter,
+  useMarketplaceFilter,
+} from '@/components/marketplace'
 
 /** Corte do robô de exclusão: perguntas recebidas antes desta data */
 const CUTOFF_ROBO = '2026-10-01'
@@ -40,6 +45,13 @@ export default function QuestionsLayout({ questions: initial }: Props) {
   const [aiLoading, setAiLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [roboStatus, setRoboStatus] = useState<string | null>(null)
+  const {
+    filtro,
+    setFiltro,
+    disponiveis,
+    filtrados: visiveis,
+    contagem,
+  } = useMarketplaceFilter(questions)
 
   const removeQuestion = (id: string) =>
     setQuestions((prev) => prev.filter((q) => q.id !== id))
@@ -153,11 +165,17 @@ export default function QuestionsLayout({ questions: initial }: Props) {
 
   return (
     <div className="space-y-3 pb-8">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <MarketplaceFilter
+          filtro={filtro}
+          setFiltro={setFiltro}
+          disponiveis={disponiveis}
+          contagem={contagem}
+        />
         <button
           onClick={handleRoboApagar}
           disabled={!!roboStatus}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm disabled:opacity-60"
+          className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm disabled:opacity-60"
           title="Apaga NO MERCADO LIVRE as perguntas recebidas antes de 01/10/2026"
         >
           {roboStatus ? (
@@ -169,7 +187,13 @@ export default function QuestionsLayout({ questions: initial }: Props) {
         </button>
       </div>
 
-      {questions.map((q) => (
+      {!visiveis.length && (
+        <p className="text-sm text-gray-400 text-center py-10">
+          Nenhuma pergunta deste marketplace.
+        </p>
+      )}
+
+      {visiveis.map((q) => (
         <div key={q.id} className="bg-white rounded-3xl p-5 shadow-sm">
 
           {/* Header */}
@@ -179,6 +203,7 @@ export default function QuestionsLayout({ questions: initial }: Props) {
               <span className="text-sm font-bold text-gray-900 truncate">
                 {q.buyerName || 'Cliente'}
               </span>
+              <MarketplaceTag marketplace={q.marketplace} />
             </div>
             <div className="flex items-center gap-1">
               {/* Bloquear comprador */}

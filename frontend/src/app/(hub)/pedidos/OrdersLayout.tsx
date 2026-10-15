@@ -3,6 +3,11 @@
 import { useState } from 'react'
 import { Package, Clock, User, DollarSign, Eye, EyeOff } from 'lucide-react'
 import type { Order } from '@/lib/api'
+import {
+  MarketplaceTag,
+  MarketplaceFilter,
+  useMarketplaceFilter,
+} from '@/components/marketplace'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -12,6 +17,13 @@ type Props = { orders: Order[] }
 
 export default function OrdersLayout({ orders }: Props) {
   const [showTitle, setShowTitle] = useState(true)
+  const {
+    filtro,
+    setFiltro,
+    disponiveis,
+    filtrados: visiveis,
+    contagem,
+  } = useMarketplaceFilter(orders)
 
   if (!orders.length) {
     return (
@@ -24,18 +36,30 @@ export default function OrdersLayout({ orders }: Props) {
 
   return (
     <div className="space-y-3 pb-8">
-      {/* Controle de visibilidade */}
-      <div className="flex justify-end">
+      {/* Filtro por marketplace + controle de visibilidade */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <MarketplaceFilter
+          filtro={filtro}
+          setFiltro={setFiltro}
+          disponiveis={disponiveis}
+          contagem={contagem}
+        />
         <button
           onClick={() => setShowTitle((v) => !v)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-[#DE7100] transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm"
+          className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-[#DE7100] transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm"
         >
           {showTitle ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           {showTitle ? 'Ocultar produto' : 'Mostrar produto'}
         </button>
       </div>
 
-      {orders.map((o) => (
+      {!visiveis.length && (
+        <p className="text-sm text-gray-400 text-center py-10">
+          Nenhum pedido deste marketplace.
+        </p>
+      )}
+
+      {visiveis.map((o) => (
         <div key={o.id} className="bg-white rounded-3xl p-5 shadow-sm">
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="flex items-center gap-2 min-w-0">
@@ -43,6 +67,7 @@ export default function OrdersLayout({ orders }: Props) {
               <span className="text-sm font-bold text-gray-900 truncate">
                 {o.buyerName || 'Cliente'}
               </span>
+              <MarketplaceTag marketplace={o.marketplace} />
             </div>
             <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-600">
               {o.status}

@@ -1,8 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Truck, Package, User, MapPin, Send, CheckCircle, RotateCcw, AlertTriangle, Clock, ChevronLeft, ChevronRight, Eye, EyeOff, Undo2 } from 'lucide-react'
 import type { Order, Complaint } from '@/lib/api'
+import {
+  MarketplaceTag,
+  MarketplaceFilter,
+  useMarketplaceFilter,
+  TODOS,
+} from '@/components/marketplace'
 
 const PAGE_SIZE = 12
 
@@ -27,25 +33,6 @@ function LogisticBadge({ type }: { type: string | null }) {
   if (!info) return null
   return (
     <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${info.color}`}>
-      {info.label}
-    </span>
-  )
-}
-
-// De qual marketplace é o pedido. Com ML e Shopee na mesma coluna, sem isso
-// não há como saber a origem de cada venda.
-const MARKETPLACE_MAP: Record<string, { label: string; color: string }> = {
-  mercadolivre: { label: 'ML',     color: 'bg-yellow-100 text-yellow-700' },
-  shopee:       { label: 'SHOPEE', color: 'bg-orange-100 text-orange-700' },
-  amazon:       { label: 'AMAZON', color: 'bg-blue-100 text-blue-700' },
-}
-
-function MarketplaceTag({ marketplace }: { marketplace: string | null }) {
-  if (!marketplace) return null
-  const info = MARKETPLACE_MAP[marketplace]
-  if (!info) return null
-  return (
-    <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${info.color}`}>
       {info.label}
     </span>
   )
@@ -278,6 +265,30 @@ export default function EnviosLayout({
   })
   const [showTitle, setShowTitle] = useState(true)
 
+  // O filtro vale para as duas fontes desta tela: pedidos e devoluções.
+  // Os marketplaces disponíveis saem das duas somadas.
+  const todosItens = useMemo(
+    () => [...orders, ...complaints],
+    [orders, complaints],
+  )
+  const { filtro, setFiltro, disponiveis, contagem } =
+    useMarketplaceFilter(todosItens)
+
+  const pedidosFiltrados = useMemo(
+    () =>
+      filtro === TODOS
+        ? orders
+        : orders.filter((o) => o.marketplace === filtro),
+    [orders, filtro],
+  )
+  const devolucoesFiltradas = useMemo(
+    () =>
+      filtro === TODOS
+        ? complaints
+        : complaints.filter((c) => c.marketplace === filtro),
+    [complaints, filtro],
+  )
+
   if (!orders.length && !complaints.length) {
     return (
       <div className="text-center py-16 text-gray-400">
@@ -289,7 +300,7 @@ export default function EnviosLayout({
   }
 
   // Reclamações que são devolução (para a coluna "Em devolução")
-  const returnComplaints = complaints
+  const returnComplaints = devolucoesFiltradas
     .filter(
       (c) =>
         c.isReturn ||
@@ -306,7 +317,7 @@ export default function EnviosLayout({
 
   // Mostra os últimos 30 dias (mais os que ainda estão em fluxo de devolução)
   const cutoff = Date.now() - 30 * 86400000
-  const visible = orders.filter((o) => {
+  const visible = pedidosFiltrados.filter((o) => {
     const d = o.orderDate ? new Date(o.orderDate).getTime() : 0
     if (d >= cutoff) return true
     // sempre mantém quem está em devolução, mesmo mais antigo
@@ -331,10 +342,16 @@ export default function EnviosLayout({
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <MarketplaceFilter
+          filtro={filtro}
+          setFiltro={setFiltro}
+          disponiveis={disponiveis}
+          contagem={contagem}
+        />
         <button
           onClick={() => setShowTitle((v) => !v)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-[#DE7100] transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm"
+          className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-[#DE7100] transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm"
         >
           {showTitle ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           {showTitle ? 'Ocultar produto' : 'Mostrar produto'}

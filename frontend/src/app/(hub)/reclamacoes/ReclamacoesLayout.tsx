@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { AlertCircle, Clock, User, Package, RotateCcw, ChevronRight, FileText, Save, AlertTriangle, Truck, Eye } from 'lucide-react'
 import type { Complaint } from '@/lib/api'
 import { updateComplaintStage, updateComplaintNotes } from '@/app/actions'
+import {
+  MarketplaceFilter,
+  useMarketplaceFilter,
+  marketplaceNome,
+} from '@/components/marketplace'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -59,7 +64,9 @@ function ReturnCard({ complaint: initial }: { complaint: Complaint }) {
                   <AlertTriangle className="w-3 h-3" /> URGENTE
                 </span>
               )}
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Mercado Livre</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                {marketplaceNome(complaint.marketplace)}
+              </span>
             </div>
             {complaint.buyerName && (
               <div className="flex items-center gap-1.5 mb-1">
@@ -232,10 +239,17 @@ type Props = { complaints: Complaint[] }
 
 export default function ReclamacoesLayout({ complaints }: Props) {
   const [tab, setTab] = useState<'reclamacoes' | 'devolucoes'>('reclamacoes')
+  const {
+    filtro,
+    setFiltro,
+    disponiveis,
+    filtrados: visiveis,
+    contagem,
+  } = useMarketplaceFilter(complaints)
 
-  const regular = complaints.filter((c) => !c.isReturn)
-  const returns = complaints.filter((c) => c.isReturn)
-  const urgentCount = complaints.filter((c) => !c.isReturn && new Date(c.slaDeadline) < new Date() && c.status !== 'closed').length
+  const regular = visiveis.filter((c) => !c.isReturn)
+  const returns = visiveis.filter((c) => c.isReturn)
+  const urgentCount = visiveis.filter((c) => !c.isReturn && new Date(c.slaDeadline) < new Date() && c.status !== 'closed').length
 
   return (
     <div className="flex gap-4 min-h-[70vh]">
@@ -278,6 +292,17 @@ export default function ReclamacoesLayout({ complaints }: Props) {
       {/* Conteúdo */}
       <div className="flex-1 min-w-0">
 
+      {disponiveis.length > 1 && (
+        <div className="flex justify-end mb-3">
+          <MarketplaceFilter
+            filtro={filtro}
+            setFiltro={setFiltro}
+            disponiveis={disponiveis}
+            contagem={contagem}
+          />
+        </div>
+      )}
+
       {/* Reclamações regulares */}
       {tab === 'reclamacoes' && (
         <div className="space-y-3 pb-8">
@@ -290,7 +315,7 @@ export default function ReclamacoesLayout({ complaints }: Props) {
             <div key={c.id} className="bg-white rounded-3xl p-5 shadow-sm space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{c.marketplace}</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{marketplaceNome(c.marketplace)}</p>
                   {new Date(c.slaDeadline) < new Date() && c.status !== 'closed' && (
                     <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase mb-1 w-fit">
                       <AlertTriangle className="w-3 h-3" /> URGENTE

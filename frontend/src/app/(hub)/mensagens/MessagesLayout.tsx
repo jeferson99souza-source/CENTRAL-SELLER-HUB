@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { MessageSquare, Clock, User, Package, Trash2 } from 'lucide-react'
 import type { Message } from '@/lib/api'
 import { cleanupOldMessages } from '@/app/actions'
+import {
+  MarketplaceTag,
+  MarketplaceFilter,
+  useMarketplaceFilter,
+} from '@/components/marketplace'
 import ConversationPanel from './ConversationPanel'
 
 /** Corte padrão: tudo que chegou antes de outubro/2026 */
@@ -70,24 +75,6 @@ export function LogisticBadge({ logisticType }: { logisticType: string | null })
   )
 }
 
-// De qual marketplace vem a linha. Com ML e Shopee no mesmo lugar, sem isso
-// não há como saber de onde é cada conversa.
-const MARKETPLACE_MAP: Record<string, { label: string; color: string }> = {
-  mercadolivre: { label: 'ML',     color: 'bg-yellow-100 text-yellow-700' },
-  shopee:       { label: 'SHOPEE', color: 'bg-orange-100 text-orange-700' },
-  amazon:       { label: 'AMAZON', color: 'bg-blue-100 text-blue-700' },
-}
-
-export function MarketplaceTag({ marketplace }: { marketplace: string | null }) {
-  if (!marketplace) return null
-  const info = MARKETPLACE_MAP[marketplace]
-  if (!info) return null
-  return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${info.color}`}>
-      {info.label}
-    </span>
-  )
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -98,6 +85,13 @@ type Props = { messages: Message[] }
 export default function MessagesLayout({ messages }: Props) {
   const [selected, setSelected] = useState<Message | null>(null)
   const [cleaning, setCleaning] = useState(false)
+  const {
+    filtro,
+    setFiltro,
+    disponiveis,
+    filtrados: visiveis,
+    contagem,
+  } = useMarketplaceFilter(messages)
 
   async function handleCleanup() {
     setCleaning(true)
@@ -147,11 +141,17 @@ export default function MessagesLayout({ messages }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <MarketplaceFilter
+          filtro={filtro}
+          setFiltro={setFiltro}
+          disponiveis={disponiveis}
+          contagem={contagem}
+        />
         <button
           onClick={handleCleanup}
           disabled={cleaning}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm disabled:opacity-60"
+          className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm disabled:opacity-60"
           title="Apaga do sistema as mensagens recebidas antes de outubro/2026"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -162,7 +162,12 @@ export default function MessagesLayout({ messages }: Props) {
       <div className={`flex gap-4 ${selected ? 'h-[calc(100vh-180px)]' : ''}`}>
       {/* Lista */}
       <div className={`space-y-3 ${selected ? 'w-80 shrink-0 overflow-y-auto' : 'w-full'}`}>
-        {messages.map((m) => (
+        {!visiveis.length && (
+          <p className="text-sm text-gray-400 text-center py-10">
+            Nenhuma conversa deste marketplace.
+          </p>
+        )}
+        {visiveis.map((m) => (
           <button
             key={m.id}
             onClick={() => setSelected(m)}

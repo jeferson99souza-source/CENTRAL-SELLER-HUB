@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Send, ShoppingBag, X, Truck, Sparkles } from 'lucide-react'
 import type { Message } from '@/lib/api'
 import { aiSuggestMessage } from '@/app/actions'
-import { LogisticBadge, MarketplaceTag } from './MessagesLayout'
+import { MarketplaceTag } from '@/components/marketplace'
+import { LogisticBadge } from './MessagesLayout'
 
 const SHIPPING_MAP: Record<string, { label: string; color: string }> = {
   handling:       { label: '📦 Preparando',   color: 'bg-gray-100 text-gray-600' },
@@ -36,9 +37,19 @@ function formatDay(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
-// Traduz os erros do Mercado Livre para algo compreensível
+// Traduz os erros dos marketplaces para algo compreensível
 function friendlyError(raw: string): string {
   const r = raw.toLowerCase()
+
+  // ─── Shopee ───
+  if (r.includes('no_permission') || r.includes('error_permission'))
+    return 'Seu app da Shopee não tem a permissão de chat. Em open.shopee.com, habilite o escopo de chat e reconecte a loja.'
+  if (r.includes('conversation') && r.includes('not') && r.includes('found'))
+    return 'Esta conversa não existe mais na Shopee.'
+  if (r.includes('shopee') && r.includes('expirou'))
+    return 'Sua conexão com a Shopee expirou. Vá em Contas e clique em "Reconectar".'
+
+  // ─── Mercado Livre ───
   if (r.includes('blocked_by_cancelled_order'))
     return 'Pedido cancelado — o Mercado Livre não permite responder mensagens de pedidos cancelados.'
   if (r.includes('blocked_by_fulfillment'))
