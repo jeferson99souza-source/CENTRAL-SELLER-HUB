@@ -17,6 +17,7 @@ import { MlWebhookService } from './services/ml-webhook.service';
 import { MlWebhookController } from './controllers/ml-webhook.controller';
 import { SyncSchedulerService } from './services/sync-scheduler.service';
 import { ShopeeService } from './services/shopee.service';
+import { ShopeeSyncService } from './services/shopee-sync.service';
 import { AmazonService } from './services/amazon.service';
 import { OAuthStateService } from './services/oauth-state.service';
 import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
@@ -44,11 +45,13 @@ import { TokenEncryptionService } from '../../common/crypto/token-encryption.ser
     MlWebhookService,
     SyncSchedulerService,
     ShopeeService,
+    ShopeeSyncService,
     AmazonService,
   ],
   exports: [
     MercadoLivreService,
     ShopeeService,
+    ShopeeSyncService,
     AmazonService,
     TokenEncryptionService,
   ],

@@ -8,8 +8,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
 import { Message } from './entities/message.entity';
-import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
+import {
+  MarketplaceAccount,
+  type Marketplace,
+} from '../accounts/entities/marketplace-account.entity';
 import { MercadoLivreService } from '../integration/services/mercadolivre.service';
+import { ShopeeService } from '../integration/services/shopee.service';
 import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
 import { KnowledgeService } from '../automation/knowledge.service';
 
@@ -30,6 +34,7 @@ export class MessagingService {
     @InjectRepository(MarketplaceAccount)
     private readonly accountRepo: Repository<MarketplaceAccount>,
     private readonly mlService: MercadoLivreService,
+    private readonly shopeeService: ShopeeService,
     private readonly encryption: TokenEncryptionService,
     private readonly knowledge: KnowledgeService,
   ) {}
@@ -246,7 +251,18 @@ export class MessagingService {
       }
     }
 
-    // Tenta pelo ID direto; se não achar (mensagem antiga sem marketplaceAccountId), busca qualquer conta ML ativa
+    // De qual marketplace é esta conversa. As mensagens antigas não têm o
+    // campo preenchido e são todas do Mercado Livre.
+    const marketplace: Marketplace =
+      message.marketplace === 'shopee'
+        ? 'shopee'
+        : message.marketplace === 'amazon'
+          ? 'amazon'
+          : 'mercadolivre';
+
+    // Tenta pelo ID direto; se não achar (mensagem antiga sem
+    // marketplaceAccountId), busca a conta ativa mais recente do MESMO
+    // marketplace — nunca de outro, senão a resposta iria para a loja errada.
     const account = message.marketplaceAccountId
       ? await this.accountRepo.findOne({
           where: { id: message.marketplaceAccountId, tenantId },
@@ -255,23 +271,20 @@ export class MessagingService {
     const resolvedAccount =
       account ??
       (await this.accountRepo.findOne({
-        where: { tenantId, marketplace: 'mercadolivre', isActive: true },
+        where: { tenantId, marketplace, isActive: true },
         order: { updatedAt: 'DESC' }, // sempre a conexão mais recente
       }));
     if (!resolvedAccount)
-      throw new NotFoundException('Conta Mercado Livre não encontrada.');
+      throw new NotFoundException(
+        marketplace === 'shopee'
+          ? 'Loja Shopee não encontrada ou desconectada.'
+          : 'Conta Mercado Livre não encontrada.',
+      );
 
-    const isExpired =
-      !resolvedAccount.tokenExpiresAt ||
-      resolvedAccount.tokenExpiresAt < new Date();
-    const accessToken = isExpired
-      ? await this.mlService.refreshAccountToken(resolvedAccount)
-      : this.encryption.decrypt(resolvedAccount.accessTokenEnc);
-
-    // Validação básica antes de chamar ML
+    // Validações comuns aos dois marketplaces
     if (!message.packId)
       throw new BadRequestException(
-        'Mensagem sem packId — não é possível responder.',
+        'Mensagem sem identificador de conversa — não é possível responder.',
       );
     if (!message.buyerId || message.buyerId === 'undefined')
       throw new BadRequestException(
@@ -279,18 +292,37 @@ export class MessagingService {
       );
 
     try {
-      await this.mlService.sendMessage(
-        accessToken,
-        message.packId,
-        resolvedAccount.sellerId,
-        message.buyerId,
-        text.trim(),
-      );
+      if (marketplace === 'shopee') {
+        const accessToken =
+          await this.shopeeService.getValidAccessToken(resolvedAccount);
+        await this.shopeeService.sendChatMessage(
+          accessToken,
+          resolvedAccount.sellerId,
+          message.buyerId,
+          text.trim(),
+        );
+      } else {
+        const isExpired =
+          !resolvedAccount.tokenExpiresAt ||
+          resolvedAccount.tokenExpiresAt < new Date();
+        const accessToken = isExpired
+          ? await this.mlService.refreshAccountToken(resolvedAccount)
+          : this.encryption.decrypt(resolvedAccount.accessTokenEnc);
+
+        await this.mlService.sendMessage(
+          accessToken,
+          message.packId,
+          resolvedAccount.sellerId,
+          message.buyerId,
+          text.trim(),
+        );
+      }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Falha ao enviar mensagem: ${detail}`);
+      this.logger.error(`Falha ao enviar mensagem (${marketplace}): ${detail}`);
       throw new InternalServerErrorException(
-        detail || 'Falha ao enviar mensagem via Mercado Livre',
+        detail ||
+          `Falha ao enviar mensagem via ${marketplace === 'shopee' ? 'Shopee' : 'Mercado Livre'}`,
       );
     }
 
@@ -313,6 +345,7 @@ export class MessagingService {
     await this.messageRepo.save({
       tenantId,
       marketplaceAccountId: resolvedAccount.id,
+      marketplace,
       orderId: message.orderId,
       packId: message.packId,
       externalId: `local-${message.packId}-${Date.now()}`,

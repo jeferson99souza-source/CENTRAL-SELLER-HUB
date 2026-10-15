@@ -40,6 +40,99 @@ interface ShopeeShopInfo extends ShopeeEnvelope {
   shop_id?: number;
 }
 
+export interface ShopeeOrderListResponse extends ShopeeEnvelope {
+  response?: {
+    more?: boolean;
+    next_cursor?: string;
+    order_list?: { order_sn: string; order_status?: string }[];
+  };
+}
+
+export interface ShopeeOrderDetail {
+  order_sn: string;
+  order_status?: string;
+  buyer_username?: string;
+  buyer_user_id?: number;
+  total_amount?: number;
+  currency?: string;
+  create_time?: number;
+  update_time?: number;
+  pay_time?: number;
+  shipping_carrier?: string;
+  /** Indica se o envio é feito pela Shopee (equivalente ao FULL do ML). */
+  fulfillment_flag?: string;
+  item_list?: {
+    item_id?: number;
+    item_name?: string;
+    model_quantity_purchased?: number;
+  }[];
+  package_list?: {
+    package_number?: string;
+    logistics_status?: string;
+    shipping_carrier?: string;
+  }[];
+}
+
+export interface ShopeeOrderDetailResponse extends ShopeeEnvelope {
+  response?: { order_list?: ShopeeOrderDetail[] };
+}
+
+export interface ShopeeReturn {
+  return_sn: string;
+  status?: string;
+  reason?: string;
+  text_reason?: string;
+  order_sn?: string;
+  refund_amount?: number;
+  create_time?: number;
+  update_time?: number;
+  user?: { username?: string };
+  item?: { name?: string; item_name?: string }[];
+}
+
+export interface ShopeeReturnListResponse extends ShopeeEnvelope {
+  response?: { more?: boolean; return?: ShopeeReturn[] };
+}
+
+export interface ShopeeConversation {
+  /** String de propósito: o id estoura a precisão de inteiro do JavaScript. */
+  conversation_id: string;
+  to_id?: number;
+  to_name?: string;
+  shop_id?: number;
+  unread_count?: number;
+  latest_message_id?: string;
+  latest_message_type?: string;
+  latest_message_content?: { text?: string };
+  latest_message_from_id?: number;
+  last_message_timestamp?: number;
+}
+
+export interface ShopeeConversationListResponse extends ShopeeEnvelope {
+  response?: {
+    conversations?: ShopeeConversation[];
+    page_result?: { next_cursor?: string; more?: boolean };
+  };
+}
+
+export interface ShopeeChatMessage {
+  message_id: string;
+  message_type?: string;
+  from_id?: number;
+  from_shop_id?: number;
+  to_id?: number;
+  conversation_id?: string;
+  created_timestamp?: number;
+  content?: { text?: string; order_sn?: string; item_id?: number };
+}
+
+export interface ShopeeMessageListResponse extends ShopeeEnvelope {
+  response?: {
+    messages?: ShopeeChatMessage[];
+    page_result?: { next_offset?: string; more?: boolean };
+  };
+}
+
 /**
  * Serviço de integração com a Shopee (Open Platform API v2).
  *
@@ -416,5 +509,187 @@ export class ShopeeService {
     shopId: string,
   ): Promise<ShopeeShopInfo> {
     return this.getShopInfo(accessToken, shopId);
+  }
+
+  // ─── Pedidos ────────────────────────────────────────────────────────────────
+
+  /**
+   * Lista os pedidos de uma janela de tempo.
+   *
+   * ATENÇÃO: a Shopee aceita no máximo 15 dias por chamada. Para períodos
+   * maiores, quem chama precisa fatiar em janelas (ver ShopeeSyncService).
+   *
+   * Paginação por cursor: repasse `next_cursor` enquanto `more` for true.
+   */
+  async getOrderList(
+    accessToken: string,
+    shopId: string,
+    opts: {
+      timeFrom: number; // epoch em SEGUNDOS
+      timeTo: number;
+      cursor?: string;
+      pageSize?: number;
+    },
+  ): Promise<ShopeeOrderListResponse> {
+    const janelaDias = (opts.timeTo - opts.timeFrom) / 86400;
+    if (janelaDias > 15) {
+      throw new BadRequestException(
+        `Janela de ${janelaDias.toFixed(1)} dias excede o limite de 15 dias da Shopee.`,
+      );
+    }
+
+    return this.shopGet<ShopeeOrderListResponse>(
+      '/api/v2/order/get_order_list',
+      accessToken,
+      shopId,
+      {
+        time_range_field: 'create_time',
+        time_from: opts.timeFrom,
+        time_to: opts.timeTo,
+        page_size: opts.pageSize ?? 100,
+        response_optional_fields: 'order_status',
+        ...(opts.cursor ? { cursor: opts.cursor } : {}),
+      },
+    );
+  }
+
+  /** Detalhe dos pedidos. A Shopee aceita no máximo 50 order_sn por chamada. */
+  async getOrderDetail(
+    accessToken: string,
+    shopId: string,
+    orderSnList: string[],
+  ): Promise<ShopeeOrderDetailResponse> {
+    if (!orderSnList.length) {
+      return { response: { order_list: [] } };
+    }
+    if (orderSnList.length > 50) {
+      throw new BadRequestException(
+        'A Shopee aceita no máximo 50 pedidos por consulta de detalhe.',
+      );
+    }
+
+    return this.shopGet<ShopeeOrderDetailResponse>(
+      '/api/v2/order/get_order_detail',
+      accessToken,
+      shopId,
+      {
+        order_sn_list: orderSnList.join(','),
+        response_optional_fields: [
+          'buyer_user_id',
+          'buyer_username',
+          'item_list',
+          'total_amount',
+          'shipping_carrier',
+          'fulfillment_flag',
+          'package_list',
+          'pay_time',
+          'recipient_address',
+        ].join(','),
+      },
+    );
+  }
+
+  // ─── Devoluções ─────────────────────────────────────────────────────────────
+
+  /**
+   * Lista as devoluções. Diferente dos pedidos, aqui a paginação é por número
+   * de página (começando em 1), não por cursor.
+   */
+  async getReturnList(
+    accessToken: string,
+    shopId: string,
+    opts: {
+      createTimeFrom: number; // epoch em SEGUNDOS
+      createTimeTo: number;
+      pageNo?: number;
+      pageSize?: number;
+    },
+  ): Promise<ShopeeReturnListResponse> {
+    return this.shopGet<ShopeeReturnListResponse>(
+      '/api/v2/returns/get_return_list',
+      accessToken,
+      shopId,
+      {
+        page_no: opts.pageNo ?? 1,
+        page_size: opts.pageSize ?? 100,
+        create_time_from: opts.createTimeFrom,
+        create_time_to: opts.createTimeTo,
+      },
+    );
+  }
+
+  // ─── Chat do vendedor ───────────────────────────────────────────────────────
+
+  /**
+   * Lista as conversas do chat.
+   *
+   * Exige a permissão de chat no app registrado em open.shopee.com — ela é
+   * um escopo SEPARADO das permissões de pedido.
+   */
+  async getConversationList(
+    accessToken: string,
+    shopId: string,
+    opts: { pageSize?: number; nextTimestampNano?: string } = {},
+  ): Promise<ShopeeConversationListResponse> {
+    return this.shopGet<ShopeeConversationListResponse>(
+      '/api/v2/sellerchat/get_conversation_list',
+      accessToken,
+      shopId,
+      {
+        page_size: opts.pageSize ?? 25,
+        direction: 'latest',
+        type: 'all',
+        ...(opts.nextTimestampNano
+          ? { next_timestamp_nano: opts.nextTimestampNano }
+          : {}),
+      },
+    );
+  }
+
+  /**
+   * Histórico de uma conversa.
+   *
+   * O conversationId é tratado como STRING de ponta a ponta: são números
+   * grandes que estouram a precisão de inteiro do JavaScript e virariam um
+   * id errado se passassem por Number().
+   */
+  async getConversationMessages(
+    accessToken: string,
+    shopId: string,
+    conversationId: string,
+    opts: { pageSize?: number; offset?: string } = {},
+  ): Promise<ShopeeMessageListResponse> {
+    return this.shopGet<ShopeeMessageListResponse>(
+      '/api/v2/sellerchat/get_message',
+      accessToken,
+      shopId,
+      {
+        conversation_id: conversationId,
+        page_size: opts.pageSize ?? 60,
+        ...(opts.offset ? { offset: opts.offset } : {}),
+      },
+    );
+  }
+
+  /** Envia uma mensagem de texto ao comprador. */
+  async sendChatMessage(
+    accessToken: string,
+    shopId: string,
+    toId: string,
+    text: string,
+  ): Promise<ShopeeEnvelope> {
+    if (!text?.trim()) {
+      throw new BadRequestException('Texto da mensagem não pode ser vazio.');
+    }
+    return this.shopPost<ShopeeEnvelope>(
+      '/api/v2/sellerchat/send_message',
+      accessToken,
+      shopId,
+      {
+        to_id: Number(toId),
+        message_type: 'text',
+        content: { text: text.trim() },
+      },
+    );
   }
 }

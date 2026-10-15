@@ -6,13 +6,19 @@ import type { Order, Complaint } from '@/lib/api'
 
 const PAGE_SIZE = 12
 
-// Tipo de logística do ML → tag FULL / FLEX / COLETA
+// Tipo de logística → tag de envio.
+// ML: FULL / FLEX / COLETA. A Shopee usa nomes próprios (fulfillment_flag) e
+// ganha rótulo próprio em vez de ser forçada nos nomes do ML.
 const LOGISTIC_MAP: Record<string, { label: string; color: string }> = {
   fulfillment:   { label: 'FULL',   color: 'bg-green-600 text-white' },
   self_service:  { label: 'FLEX',   color: 'bg-blue-600 text-white' },
   cross_docking: { label: 'COLETA', color: 'bg-amber-500 text-white' },
   drop_off:      { label: 'COLETA', color: 'bg-amber-500 text-white' },
   xd_drop_off:   { label: 'COLETA', color: 'bg-amber-500 text-white' },
+  // Shopee
+  fulfilled_by_shopee:       { label: 'SHOPEE ENVIOS', color: 'bg-green-600 text-white' },
+  fulfilled_by_local_seller: { label: 'ENVIO PRÓPRIO', color: 'bg-amber-500 text-white' },
+  fulfilled_by_cb_seller:    { label: 'ENVIO PRÓPRIO', color: 'bg-amber-500 text-white' },
 }
 
 function LogisticBadge({ type }: { type: string | null }) {
@@ -21,6 +27,25 @@ function LogisticBadge({ type }: { type: string | null }) {
   if (!info) return null
   return (
     <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${info.color}`}>
+      {info.label}
+    </span>
+  )
+}
+
+// De qual marketplace é o pedido. Com ML e Shopee na mesma coluna, sem isso
+// não há como saber a origem de cada venda.
+const MARKETPLACE_MAP: Record<string, { label: string; color: string }> = {
+  mercadolivre: { label: 'ML',     color: 'bg-yellow-100 text-yellow-700' },
+  shopee:       { label: 'SHOPEE', color: 'bg-orange-100 text-orange-700' },
+  amazon:       { label: 'AMAZON', color: 'bg-blue-100 text-blue-700' },
+}
+
+function MarketplaceTag({ marketplace }: { marketplace: string | null }) {
+  if (!marketplace) return null
+  const info = MARKETPLACE_MAP[marketplace]
+  if (!info) return null
+  return (
+    <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${info.color}`}>
       {info.label}
     </span>
   )
@@ -114,6 +139,7 @@ function ComplaintCard({ c, showTitle }: { c: Complaint; showTitle: boolean }) {
         <div className="flex items-center gap-1.5 min-w-0">
           <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
           <span className="text-sm font-bold text-gray-900 truncate">{c.buyerName || 'Cliente'}</span>
+          <MarketplaceTag marketplace={c.marketplace} />
         </div>
         <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${tag.color}`}>{tag.label}</span>
       </div>
@@ -353,6 +379,7 @@ export default function EnviosLayout({
                       <span className="text-sm font-bold text-gray-900 truncate">
                         {o.buyerName || 'Cliente'}
                       </span>
+                      <MarketplaceTag marketplace={o.marketplace} />
                     </div>
                     <LogisticBadge type={o.logisticType} />
                   </div>

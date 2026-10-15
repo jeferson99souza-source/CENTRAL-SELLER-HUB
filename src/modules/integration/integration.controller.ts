@@ -24,6 +24,7 @@ import { TenantId } from '../../common/decorators/tenant.decorator';
 import { MercadoLivreService } from './services/mercadolivre.service';
 import { MlSyncService } from './services/ml-sync.service';
 import { ShopeeService } from './services/shopee.service';
+import { ShopeeSyncService } from './services/shopee-sync.service';
 import { ConnectAccountDto } from './dto/connect-account.dto';
 import { MarketplaceAccount } from '../accounts/entities/marketplace-account.entity';
 import { TokenEncryptionService } from '../../common/crypto/token-encryption.service';
@@ -38,6 +39,7 @@ export class IntegrationController {
     private readonly mlService: MercadoLivreService,
     private readonly mlSyncService: MlSyncService,
     private readonly shopeeService: ShopeeService,
+    private readonly shopeeSyncService: ShopeeSyncService,
     private readonly encryption: TokenEncryptionService,
     private readonly config: ConfigService,
     @InjectRepository(MarketplaceAccount)
@@ -360,6 +362,26 @@ export class IntegrationController {
         url: `${this.frontendUrl}/contas?shopeeError=${encodeURIComponent(msg)}`,
       };
     }
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiOperation({
+    summary: 'Sincronizar pedidos, devoluções e conversas da Shopee',
+    description:
+      'Roda em segundo plano. Pedidos e devoluções dos últimos 30 dias, conversas dos últimos 7.',
+  })
+  @Post('shopee/sync')
+  syncShopee(@TenantId() tenantId: string) {
+    // Igual ao ML: roda em background para não estourar o timeout do request.
+    void this.shopeeSyncService
+      .syncForTenant(tenantId)
+      .catch((err) =>
+        this.logger.error(
+          `Sync Shopee em background falhou: ${(err as Error).message}`,
+        ),
+      );
+    return { data: { started: true } };
   }
 
   @ApiBearerAuth()

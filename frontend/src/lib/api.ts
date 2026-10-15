@@ -73,6 +73,7 @@ export type Complaint = {
 
 export type Message = {
   id: string
+  marketplace: string
   orderId: string
   packId: string
   buyerId: string

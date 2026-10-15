@@ -44,13 +44,19 @@ function ShippingBadge({ shippingStatus }: { shippingStatus: string | null }) {
   )
 }
 
-// Tipo de logística do ML → tag FULL / FLEX / COLETA
+// Tipo de logística → tag de envio.
+// ML: FULL / FLEX / COLETA. Shopee usa nomes próprios (fulfillment_flag),
+// por isso recebem rótulo próprio em vez de serem forçados nos do ML.
 const LOGISTIC_MAP: Record<string, { label: string; color: string }> = {
   fulfillment:   { label: 'FULL',   color: 'bg-green-600 text-white' },
   self_service:  { label: 'FLEX',   color: 'bg-blue-600 text-white' },
   cross_docking: { label: 'COLETA', color: 'bg-amber-500 text-white' },
   drop_off:      { label: 'COLETA', color: 'bg-amber-500 text-white' },
   xd_drop_off:   { label: 'COLETA', color: 'bg-amber-500 text-white' },
+  // Shopee
+  fulfilled_by_shopee:       { label: 'SHOPEE ENVIOS', color: 'bg-green-600 text-white' },
+  fulfilled_by_local_seller: { label: 'ENVIO PRÓPRIO', color: 'bg-amber-500 text-white' },
+  fulfilled_by_cb_seller:    { label: 'ENVIO PRÓPRIO', color: 'bg-amber-500 text-white' },
 }
 
 export function LogisticBadge({ logisticType }: { logisticType: string | null }) {
@@ -59,6 +65,25 @@ export function LogisticBadge({ logisticType }: { logisticType: string | null })
   if (!info) return null
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${info.color}`}>
+      {info.label}
+    </span>
+  )
+}
+
+// De qual marketplace vem a linha. Com ML e Shopee no mesmo lugar, sem isso
+// não há como saber de onde é cada conversa.
+const MARKETPLACE_MAP: Record<string, { label: string; color: string }> = {
+  mercadolivre: { label: 'ML',     color: 'bg-yellow-100 text-yellow-700' },
+  shopee:       { label: 'SHOPEE', color: 'bg-orange-100 text-orange-700' },
+  amazon:       { label: 'AMAZON', color: 'bg-blue-100 text-blue-700' },
+}
+
+export function MarketplaceTag({ marketplace }: { marketplace: string | null }) {
+  if (!marketplace) return null
+  const info = MARKETPLACE_MAP[marketplace]
+  if (!info) return null
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${info.color}`}>
       {info.label}
     </span>
   )
@@ -149,6 +174,7 @@ export default function MessagesLayout({ messages }: Props) {
                 <span className="text-sm font-bold text-gray-900 truncate">
                   {m.buyerName || 'Cliente'}
                 </span>
+                <MarketplaceTag marketplace={m.marketplace} />
                 <LogisticBadge logisticType={m.logisticType} />
                 <ShippingBadge shippingStatus={m.shippingStatus} />
               </div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { RefreshCw, RotateCw } from 'lucide-react'
-import { syncML } from '@/app/actions'
+import { syncMarketplaces } from '@/app/actions'
 
 export default function SyncButton() {
   const [loading, setLoading] = useState(false)
@@ -11,7 +11,7 @@ export default function SyncButton() {
   const handleSync = async () => {
     setLoading(true)
     try {
-      const res = await syncML()
+      const res = await syncMarketplaces()
       if (res && 'error' in res && res.error) {
         alert('Erro ao iniciar a sincronização: ' + res.error)
       } else {
@@ -44,7 +44,7 @@ export default function SyncButton() {
         }`}
       >
         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        {loading ? 'Iniciando...' : 'Puxar Dados do ML'}
+        {loading ? 'Iniciando...' : 'Puxar Dados'}
       </button>
     </div>
   )

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Send, ShoppingBag, X, Truck, Sparkles } from 'lucide-react'
 import type { Message } from '@/lib/api'
 import { aiSuggestMessage } from '@/app/actions'
-import { LogisticBadge } from './MessagesLayout'
+import { LogisticBadge, MarketplaceTag } from './MessagesLayout'
 
 const SHIPPING_MAP: Record<string, { label: string; color: string }> = {
   handling:       { label: '📦 Preparando',   color: 'bg-gray-100 text-gray-600' },
@@ -151,6 +151,7 @@ export default function ConversationPanel({ selected, onClose }: Props) {
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-bold text-gray-900 truncate">{selected.buyerName || 'Cliente'}</p>
+            <MarketplaceTag marketplace={selected.marketplace} />
             <LogisticBadge logisticType={selected.logisticType} />
             {selected.shippingStatus && (
               <ShippingBadge status={selected.shippingStatus} />

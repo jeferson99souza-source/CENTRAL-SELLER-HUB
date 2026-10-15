@@ -130,23 +130,41 @@ export async function logout() {
   redirect('/login')
 }
 
-export async function syncML() {
+/**
+ * Dispara a sincronização de TODOS os marketplaces conectados.
+ *
+ * As duas rodam em segundo plano no servidor. A da Shopee é disparada mesmo
+ * sem loja conectada (ela só registra no log e não faz nada), por isso uma
+ * falha dela não derruba a do Mercado Livre.
+ */
+export async function syncMarketplaces() {
   const store = await cookies()
   const token = store.get('token')?.value
 
   if (!token) return { error: 'Não autorizado' }
 
-  try {
-    const res = await fetch(`${API_URL}/integration/mercadolivre/sync`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
-    })
+  const headers = { Authorization: `Bearer ${token}` }
 
-    if (res.ok) {
-      const body = await res.json()
-      return { success: true, data: body.data }
+  try {
+    const [ml, shopee] = await Promise.allSettled([
+      fetch(`${API_URL}/integration/mercadolivre/sync`, { method: 'POST', headers }),
+      fetch(`${API_URL}/integration/shopee/sync`, { method: 'POST', headers }),
+    ])
+
+    // O Mercado Livre é o que o vendedor usa hoje: se ele falhar, é erro.
+    if (ml.status === 'rejected') {
+      return { error: networkError(ml.reason) }
     }
-    return { error: await parseApiError(res, 'Não foi possível sincronizar com o Mercado Livre') }
+    if (!ml.value.ok) {
+      return { error: await parseApiError(ml.value, 'Não foi possível sincronizar com o Mercado Livre') }
+    }
+
+    const body = await ml.value.json()
+    return {
+      success: true,
+      data: body.data,
+      shopeeStarted: shopee.status === 'fulfilled' && shopee.value.ok,
+    }
   } catch (err) {
     return { error: networkError(err) }
   }

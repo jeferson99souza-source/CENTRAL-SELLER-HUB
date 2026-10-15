@@ -19,6 +19,11 @@ export class Message {
   @Column({ name: 'marketplace_account_id' })
   marketplaceAccountId: string;
 
+  // Define para onde a resposta é enviada. As mensagens antigas são todas do
+  // Mercado Livre, por isso o default.
+  @Column({ type: 'varchar', default: 'mercadolivre' })
+  marketplace: string;
+
   @Column({ name: 'order_id', nullable: true })
   orderId: string;
 
