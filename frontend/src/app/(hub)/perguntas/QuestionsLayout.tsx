@@ -8,6 +8,24 @@ import { answerQuestion, dismissQuestion, blockBuyer, aiSuggestQuestion, bulkDel
 /** Corte do robô de exclusão: perguntas recebidas antes desta data */
 const CUTOFF_ROBO = '2026-10-01'
 
+/** Traduz os erros do Mercado Livre ao responder uma pergunta */
+function friendlyError(raw: string): string {
+  const r = (raw || '').toLowerCase()
+  if (r.includes('not_active_item') || r.includes('item must be active'))
+    return 'O anúncio está pausado ou encerrado — o Mercado Livre não permite responder perguntas dele. Reative o anúncio para responder, ou apague a pergunta.'
+  if (r.includes('question_not_found') || r.includes('not_found'))
+    return 'Esta pergunta não existe mais no Mercado Livre (já foi respondida ou excluída).'
+  if (r.includes('already_answered') || r.includes('answered'))
+    return 'Esta pergunta já foi respondida no Mercado Livre.'
+  if (r.includes('expirou'))
+    return 'Sua conexão com o Mercado Livre expirou. Vá em Contas e clique em "Reconectar".'
+  if (r.includes('forbidden') || r.includes('403'))
+    return 'O Mercado Livre não permitiu responder esta pergunta (403).'
+  if (r.includes('blocked'))
+    return 'O Mercado Livre bloqueou a resposta para esta pergunta.'
+  return raw
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
@@ -33,7 +51,7 @@ export default function QuestionsLayout({ questions: initial }: Props) {
     const res = await answerQuestion(questionId, replyText.trim())
     setLoading(false)
     if ('error' in res && res.error) {
-      setError(res.error)
+      setError(friendlyError(res.error))
     } else {
       removeQuestion(questionId)
       setReplying(null)
